@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameVerse — Play. Level Up. Repeat.</title>
+<meta name="theme-color" content="#070A14">
+<meta name="description" content="GameVerse — one profile, six addictive browser games. Earn XP, coins, and climb the leaderboard.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="aurora"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+<div class="bg-orb orb3"></div>
+<canvas id="particles"></canvas>
+
+<!-- NAV -->
+<nav class="nav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <div class="logo" aria-label="GameVerse home"><span class="logo-icon" aria-hidden="true">◆</span> GameVerse <span class="logo-accent">VERSE</span></div>
+    <div class="nav-links" role="navigation">
+      <a href="#games" class="nav-link active" aria-current="page">Games</a>
+      <a href="#lb" class="nav-link">Leaderboard</a>
+      <a href="#" id="nav-profile-btn" class="nav-link" aria-label="Open profile">Profile</a>
+      <a href="/admin.html" class="nav-link" target="_blank" aria-label="Open admin dashboard">Admin DB ↗</a>
+    </div>
+    <div class="nav-actions">
+      <div class="search" role="search"><span aria-hidden="true">⌕</span><input id="searchInput" placeholder="Search games..." aria-label="Search games"></div>
+      <div class="theme-picker" id="themePicker" role="group" aria-label="Theme picker">
+        <button class="theme-btn" data-theme="ember" title="Ember Forge (default)" aria-label="Ember theme" style="background:linear-gradient(135deg,#FF6A00,#FFB800)"></button>
+        <button class="theme-btn" data-theme="neon" title="Neon Verse" aria-label="Neon theme" style="background:linear-gradient(135deg,#7C3AED,#06B6D4)"></button>
+        <button class="theme-btn" data-theme="emerald" title="Emerald Night" aria-label="Emerald theme" style="background:linear-gradient(135deg,#10B981,#06B6D4)"></button>
+        <button class="theme-btn" data-theme="frost" title="Frost Light" aria-label="Frost theme" style="background:linear-gradient(135deg,#4F46E5,#EC4899)"></button>
+      </div>
+      <button class="btn-mini" id="soundToggle" title="Toggle sound" aria-label="Toggle sound" style="padding:8px 10px">🔊</button>
+      <button class="btn-mini" id="coinsPill" title="Your coins — open shop" aria-label="Open shop">🪙 <b id="coinsCount">0</b></button>
+      <button class="profile-pill" id="profilePill">
+        <span class="avatar" id="navAvatar">⚡</span>
+        <span id="navName">Guest</span>
+        <span class="pill-lvl" id="navLevel">Lv 1</span>
+      </button>
+      <button class="btn-neon" id="createProfileBtn">Create Profile</button>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-left">
+    <div class="badge">🔥 EMBER FORGE • <span id="streakBadge">🔥 Streak 1 • +20 XP daily</span></div>
+    <h1>ENTER THE<br><span class="grad">GAME VERSE</span></h1>
+    <p class="hero-sub">One profile. Six addictive games. Earn XP, unlock avatars, climb the leaderboard. Built for players who never stop.</p>
+    <div class="hero-cta">
+      <button class="btn-primary-lg" onclick="document.getElementById('games').scrollIntoView({behavior:'smooth'})">▶ PLAY NOW</button>
+      <button class="btn-ghost" id="heroProfileBtn">Create Your Avatar →</button>
+    </div>
+    <div class="hero-stats">
+      <div><strong id="heroTotalGames">6</strong><span>Games</span></div>
+      <div><strong id="heroOnline">—</strong><span>Online Now</span></div>
+      <div><strong id="heroUsers">—</strong><span>Profiles</span></div>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="profile-card glass">
+      <div class="pc-top">
+        <div class="pc-avatar" id="heroAvatar">⚡</div>
+        <div class="pc-info">
+          <div class="pc-name" id="heroName">Guest Player</div>
+          <div class="pc-handle" id="heroHandle">@guest</div>
+          <div class="pc-bar"><div id="heroXpBar"></div></div>
+          <div class="pc-xp"><span id="heroXp">0 XP</span> • <span id="heroLvl">Level 1</span></div>
+        </div>
+      </div>
+      <div class="pc-grid">
+        <div><b id="pcPlayed">0</b><span>Played</span></div>
+        <div><b id="pcWins">0</b><span>Wins</span></div>
+        <div><b id="pcXp2">0</b><span>XP</span></div>
+        <div><b id="pcRank">#—</b><span>Rank</span></div>
+      </div>
+      <div class="pc-achievements" id="heroAchievements"></div>
+      <button class="btn-neon full" id="editProfileBtn2">⚙ Edit Profile</button>
+    </div>
+    <div class="floating-card fc1">🎯 Aim Blaster — TOP</div>
+    <div class="floating-card fc2">🐍 Neon Snake — HOT</div>
+  </div>
+</header>
+
+<!-- DAILY / CHALLENGES -->
+<div class="daily-strip glass" id="dailyStrip"></div>
+
+<!-- FILTERS -->
+<div class="filters" id="games">
+  <div class="filter-left">
+    <button class="filter active" data-filter="all">All Games</button>
+    <button class="filter" data-filter="arcade">Arcade</button>
+    <button class="filter" data-filter="puzzle">Puzzle</button>
+    <button class="filter" data-filter="action">Action</button>
+  </div>
+  <div class="filter-right">Showing <b id="showingCount">6</b> games • <span class="live">● Live</span> • <button class="btn-mini" id="howToBtn" style="padding:6px 10px">❓ How to Play</button></div>
+</div>
+
+<!-- GAMES GRID -->
+<main class="games-grid" id="gamesGrid">
+  <!-- cards injected via JS -->
+</main>
+
+<!-- LEADERBOARD + ACTIVITY -->
+<section class="bottom-grid" id="lb">
+  <div class="glass panel">
+    <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px">
+      <h3 style="margin:0">🏆 Leaderboard</h3>
+      <select id="lbGame" class="btn-mini" aria-label="Leaderboard board">
+        <option value="all">⭐ Total XP</option>
+        <option value="snake">🐍 Snake</option>
+        <option value="memory">🧠 Memory</option>
+        <option value="tictac">⭕ TicTacToe</option>
+        <option value="blaster">🎯 Blaster</option>
+        <option value="runner">🏃 Runner</option>
+        <option value="simon">✨ Simon</option>
+      </select>
+    </div>
+    <div class="lb-list" id="lbList"></div>
+  </div>
+  <div class="glass panel">
+    <h3>⚡ Recent Activity</h3>
+    <div class="activity" id="activityList"></div>
+    <div class="panel-foot">
+      <span>Progress syncs to the GameVerse database when the server is running. <a href="/admin.html" style="color:#7C3AED;font-weight:800" target="_blank">View DB →</a></span>
+      <button class="btn-mini" id="resetProgress">Reset Progress</button>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div>© 2026 GameVerse — Crafted for players. One profile unlocks everything. <span class="muted">No download. Play instantly.</span></div>
+  <div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
+</footer>
+
+<!-- PROFILE MODAL -->
+<div class="modal hidden" id="profileModal" role="dialog" aria-modal="true" aria-label="Create profile">
+  <div class="modal-card glass">
+    <button class="modal-close" id="closeProfile" aria-label="Close profile modal">×</button>
+    <h2>Create Your Player Profile</h2>
+    <p class="muted">One profile works across all games. Pick an avatar and join the Verse.</p>
+    <label>Player Name</label>
+    <input id="pName" placeholder="e.g. NovaRider" maxlength="20" autocomplete="nickname" aria-label="Player name">
+    <!-- honeypot: invisible to humans, bots fill it and get rejected -->
+    <input id="pWebsite" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;opacity:0">
+    <label>Security PIN (4 digits, protects your name)</label>
+    <input id="pPin" placeholder="1234" maxlength="4" inputmode="numeric" pattern="[0-9]*" aria-label="Security PIN">
+    <label>Choose Avatar</label>
+    <div class="avatar-grid" id="avatarGrid"></div>
+    <label>Favorite Genre</label>
+    <div class="genre-row">
+      <button class="genre active" data-genre="Arcade">Arcade</button>
+      <button class="genre" data-genre="Puzzle">Puzzle</button>
+      <button class="genre" data-genre="Action">Action</button>
+      <button class="genre" data-genre="Strategy">Strategy</button>
+    </div>
+    <button class="btn-primary-lg full" id="saveProfile">Save & Enter Verse →</button>
+    <div class="hint">Stored in your browser. Play on any device after login — progress auto-syncs via local storage.</div>
+  </div>
+</div>
+
+<!-- SHOP MODAL -->
+<div class="modal hidden" id="shopModal" role="dialog" aria-modal="true" aria-label="Coin shop">
+  <div class="modal-card glass">
+    <button class="modal-close" id="closeShop" aria-label="Close shop">×</button>
+    <h2>🪙 Coin Shop</h2>
+    <p class="muted">Earn coins in Runner Rush, spend them here. Balance: <b id="shopBalance">0</b> 🪙</p>
+    <div id="shopItems" style="display:grid;gap:10px;margin-top:14px"></div>
+    <div class="hint">Freezes save your streak when you miss a day. Crowns unlock the 👑 and 💎 avatars early.</div>
+  </div>
+</div>
+
+<!-- GAME MODAL -->
+<div class="modal game-modal hidden" id="gameModal" role="dialog" aria-modal="true" aria-label="Game modal">
+  <div class="game-frame">
+    <div class="game-topbar">
+      <div class="gt-left">
+        <span id="gameIcon" aria-hidden="true">🎮</span>
+        <b id="gameTitle">Game</b>
+        <span class="gt-tag" id="gameTag">Arcade</span>
+      </div>
+      <div class="gt-right">
+        <span class="gt-score">Score: <b id="gameScore">0</b> • Best: <b id="gameBest">0</b></span>
+        <button class="btn-mini" id="gameShare" aria-label="Share score">↗ Share</button>
+        <button class="btn-mini" id="gameRestart" aria-label="Restart game">↻ Restart</button>
+        <button class="modal-close light" id="closeGame" aria-label="Close game">×</button>
+      </div>
+    </div>
+    <div class="game-body" id="gameBody"></div>
+    <div class="game-controls" id="gameControls"></div>
+    <div class="game-extra" id="gameExtra" style="padding:10px 14px;border-top:1px solid rgba(255,255,255,0.06);display:none;gap:8px;flex-wrap:wrap"></div>
+  </div>
+</div>
+
+<!-- HOW TO MODAL -->
+<div class="modal hidden" id="howToModal">
+  <div class="modal-card glass" style="max-width:620px">
+    <button class="modal-close" id="closeHowTo">×</button>
+    <h2>How to Play & Pro Tips</h2>
+    <div style="display:grid;gap:12px;margin-top:14px;color:#C8CEE6;line-height:1.6;font-size:0.92rem">
+      <div><b>🐍 Snake:</b> WASD/Arrows or swipe, <b>P</b> pause, eat for level up — speed ramps. Don't hit walls.</div>
+      <div><b>🧠 Memory:</b> Find 8 pairs. Watch moves + stars — 3★ under 20 moves & 45s. Hint power-up available.</div>
+      <div><b>⭕ TicTacToe:</b> Hard = unbeatable minimax. Win line glows. W/D/L tracked.</div>
+      <div><b>🎯 Blaster:</b> Gold ★ = +22, Bomb 💣 = -12. Combo builds score. Use Slow-Mo power-up.</div>
+      <div><b>🏃 Runner:</b> Space/↑ double-jump. Dust on jump. Speed ramps. R to restart.</div>
+      <div><b>✨ Simon:</b> Strict resets on miss. Speed ramps every 4 levels. Repeat button available.</div>
+      <div style="background:rgba(255,106,0,0.1);border:1px solid rgba(255,106,0,0.2);padding:10px 12px;border-radius:12px"><b>🔥 Pro:</b> Daily streak +20 XP, power-ups 1 per game, sound toggle top-right, theme dots, share score, per-game mini-leaderboard in modal.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

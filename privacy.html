@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy — GameVerse</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="nav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <div class="logo"><span class="logo-icon">◆</span> GameVerse <span class="logo-accent">VERSE</span></div>
+    <div class="nav-links"><a href="/" class="nav-link">← Back to Game</a></div>
+  </div>
+</nav>
+<main style="max-width:720px;margin:32px auto;padding:0 20px;line-height:1.7">
+  <h1 style="font-family:'Orbitron',sans-serif;margin-bottom:12px">Privacy Policy</h1>
+  <p class="muted">Last updated: 2026. GameVerse is a small hobby project — here's exactly what we store.</p>
+  <h2 style="margin-top:20px">What we collect</h2>
+  <ul style="margin:8px 0 8px 20px">
+    <li><b>Profile you enter:</b> player name, avatar, favorite genre.</li>
+    <li><b>Security PIN:</b> stored only as a one-way scrypt hash — we cannot read your PIN.</li>
+    <li><b>Gameplay:</b> scores, best scores, XP, coins, quest completions, login times.</li>
+    <li><b>Technical:</b> IP address and browser user-agent recorded with login sessions for abuse prevention.</li>
+  </ul>
+  <h2 style="margin-top:20px">What lives in your browser</h2>
+  <p>Your profile copy, settings (theme, sound), streak, and quest history are kept in <span style="font-family:monospace">localStorage</span> on your own device. Clearing site data removes them.</p>
+  <h2 style="margin-top:20px">What we don't do</h2>
+  <p>No ads, no trackers, no analytics, no data sales. Leaderboards show only your player name, avatar, and scores.</p>
+  <h2 style="margin-top:20px">Deletion</h2>
+  <p>Use Reset Progress in the app to wipe local data. To delete your server profile, contact the site operator — server data lives in a single SQLite file and backups rotate every 14 days.</p>
+</main>
+<footer class="footer"><div>© 2026 GameVerse</div><div class="footer-links"><a href="/terms.html">Terms</a></div></footer>
+</body>
+</html>

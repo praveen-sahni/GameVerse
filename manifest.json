@@ -1,0 +1,14 @@
+{
+  "name": "GameVerse — Play. Level Up. Repeat.",
+  "short_name": "GameVerse",
+  "description": "One profile, six addictive browser games.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070A14",
+  "theme_color": "#070A14",
+  "icons": [
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
+}

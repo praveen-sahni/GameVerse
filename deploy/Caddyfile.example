@@ -1,0 +1,5 @@
+# GameVerse behind Caddy (automatic Let's Encrypt HTTPS).
+# Install Caddy, copy this to /etc/caddy/Caddyfile with your domain, reload.
+game.example.com {
+	reverse_proxy 127.0.0.1:3000
+}

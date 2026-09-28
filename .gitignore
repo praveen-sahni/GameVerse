@@ -1,0 +1,11 @@
+node_modules/
+database.json
+database.json.migrated-bak
+gameverse.db
+gameverse.db-*
+backups/
+server.log
+.DS_Store
+*.log
+dist/
+.env

@@ -1,0 +1,21 @@
+# GameVerse systemd unit — copy to /etc/systemd/system/gameverse.service,
+# then: systemctl daemon-reload && systemctl enable --now gameverse
+[Unit]
+Description=GameVerse gaming hub
+After=network.target
+
+[Service]
+Type=simple
+User=gameverse
+WorkingDirectory=/opt/gameverse
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Generate with: openssl rand -hex 32
+Environment=ADMIN_KEY=CHANGE-ME-TO-64-HEX-CHARS
+ExecStart=/usr/bin/node /opt/gameverse/server.js
+Restart=always
+RestartSec=5
+# SQLite + backups live under WorkingDirectory — back up /opt/gameverse/backups
+
+[Install]
+WantedBy=multi-user.target

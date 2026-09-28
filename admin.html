@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameVerse Admin — Database</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@600&family=Orbitron:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0B14;--card:#121328;--border:rgba(255,255,255,0.08);--muted:#9AA0B5;--neon:#7C3AED}
+body{background:var(--bg);color:#F8F9FF;font-family:Outfit,sans-serif;min-height:100vh}
+.nav{position:sticky;top:0;z-index:10;background:rgba(10,11,20,0.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:Orbitron,sans-serif;font-weight:800;letter-spacing:0.06em}
+.nav a{color:#C2C8DB;text-decoration:none;font-weight:700;background:rgba(255,255,255,0.06);padding:8px 14px;border-radius:999px;border:1px solid var(--border)}
+.wrap{max-width:1280px;margin:auto;padding:20px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0}
+.kpi{background:rgba(18,19,40,0.7);border:1px solid var(--border);border-radius:16px;padding:16px}
+.kpi small{color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;font-size:0.7rem;font-weight:800}
+.kpi b{font-family:Orbitron,sans-serif;font-size:1.6rem;display:block;margin-top:6px}
+.tabs{display:flex;gap:8px;margin:16px 0}
+.tab{padding:9px 16px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,0.05);color:#C2C8DB;cursor:pointer;font-weight:800}
+.tab.active{background:white;color:#0A0B14}
+.panel{background:rgba(18,19,40,0.7);border:1px solid var(--border);border-radius:16px;padding:16px;overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;text-align:left;padding:10px;border-bottom:1px solid var(--border)}
+td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.9rem}
+.badge{padding:4px 8px;border-radius:999px;font-size:0.7rem;font-weight:800}
+.online{background:#22C55E;color:#052e16}
+.offline{background:rgba(255,255,255,0.08);color:#C2C8DB}
+.avatar{width:32px;height:32px;display:inline-grid;place-items:center;background:linear-gradient(135deg,#7C3AED,#06B6D4);border-radius:9px;margin-right:6px}
+.controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.controls input{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.06);color:white;min-width:240px}
+.btn{background:linear-gradient(135deg,#7C3AED,#FF2E93);color:white;border:none;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="nav">
+  <div class="logo">◆ GameVerse ADMIN</div>
+  <div style="display:flex;gap:10px">
+    <a href="/">← Back to Game</a>
+    <a href="#" id="refresh">↻ Refresh</a>
+  </div>
+</div>
+<div class="wrap">
+  <h2 style="font-family:Orbitron,sans-serif;margin-top:6px">Database Dashboard</h2>
+  <p style="color:#9AA0B5;margin-top:4px">Live SQLite database — see every profile, login, and active player. Auto-refresh every 5s.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="controls">
+    <input id="search" placeholder="Search username...">
+    <input id="adminKey" type="password" placeholder="Admin key (if set)" autocomplete="off" style="min-width:180px">
+    <button class="btn" id="exportBtn">⬇ Export CSV</button>
+    <button class="btn" id="backupBtn">💾 Backup DB</button>
+  </div>
+  <p id="adminNote" style="color:#9AA0B5;font-size:0.82rem;margin:-4px 0 12px"></p>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="users">👥 Users & Logins</button>
+    <button class="tab" data-tab="sessions">🟢 Sessions</button>
+    <button class="tab" data-tab="activity">⚡ Activity Feed</button>
+  </div>
+
+  <div class="panel" id="panel"></div>
+</div>
+<script>
+let tab='users';
+let usersData=[];
+function adminHeaders(){ const k=document.getElementById('adminKey')?.value||sessionStorage.getItem('gv_admin_key')||''; return k?{'x-admin-key':k}:{}; }
+async function fetchJSON(u){
+  const r=await fetch(u,{headers:adminHeaders()});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401) throw new Error(j.error||'Unauthorized — enter admin key');
+  if(!r.ok) throw new Error(j.error||('Request failed ('+r.status+')'));
+  return j;
+}
+
+async function loadKpis(){
+  const s=await fetchJSON('/api/stats/summary');
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi"><small>Total Users</small><b>${s.totalUsers}</b></div>
+    <div class="kpi"><small>Online Now (2 min)</small><b style="color:#22C55E">${s.onlineNow}</b></div>
+    <div class="kpi"><small>Total XP</small><b>${s.totalXp}</b></div>
+    <div class="kpi"><small>Games Played</small><b>${s.totalPlayed}</b></div>
+  `;
+}
+
+function esc(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
+async function render(){
+  const note=document.getElementById('adminNote');
+  try{
+    await loadKpis();
+  }catch(e){ document.getElementById('panel').innerHTML=`<p style="color:#FF7A9B">Cannot reach server: ${esc(e.message)}</p>`; return; }
+  const q=document.getElementById('search').value.toLowerCase();
+  const panel=document.getElementById('panel');
+  try{
+  if(tab==='users'){
+    const users=await fetchJSON('/api/users');
+    usersData=users;
+    const filtered=users.filter(u=>!q||u.username.toLowerCase().includes(q));
+    panel.innerHTML=`<table><thead><tr><th>#</th><th>User</th><th>Genre</th><th>XP / Level</th><th>Played / Wins</th><th>Best Scores</th><th>Last Seen</th><th>Status</th></tr></thead><tbody>
+      ${filtered.map(u=>`
+        <tr>
+          <td>${u.id}</td>
+          <td><span class="avatar">${esc(u.avatar)}</span> <b>${esc(u.username)}</b><br><small style="color:#9AA0B5">${esc(new Date(u.created_at).toLocaleString())}</small></td>
+          <td>${esc(u.genre)}</td>
+          <td><b>${u.xp}</b> <small style="color:#9AA0B5">Lv ${Math.floor(u.xp/300)+1}</small></td>
+          <td>${u.played} / ${u.wins}</td>
+          <td style="max-width:180px;word-break:break-all"><small style="font-family:JetBrains Mono">${esc(Object.entries(u.best||{}).map(([k,v])=>k+':'+v).join(', ')||'—')}</small></td>
+          <td><small>${esc(new Date(u.last_seen).toLocaleString())}</small></td>
+          <td><span class="badge ${u.isOnline?'online':'offline'}">${u.isOnline?'● Online':'○ Offline'}</span></td>
+        </tr>
+      `).join('')}
+    </tbody></table>`;
+  } else if(tab==='sessions'){
+    const rows=await fetchJSON('/api/sessions');
+    const filtered=rows.filter(r=>!q||r.username.toLowerCase().includes(q));
+    panel.innerHTML=`<table><thead><tr><th>Login</th><th>User</th><th>IP</th><th>Agent</th><th>Logout</th></tr></thead><tbody>
+      ${filtered.map(r=>`<tr><td><small>${new Date(r.login_at).toLocaleString()}</small></td><td><span class="avatar">${r.avatar}</span> ${r.username}</td><td><small>${r.ip||'—'}</small></td><td><small style="max-width:260px;display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.user_agent||'—'}</small></td><td><small>${r.logout_at?new Date(r.logout_at).toLocaleString():'— active —'}</small></td></tr>`).join('')}
+    </tbody></table>`;
+  } else {
+    const rows=await fetchJSON('/api/activity');
+    const filtered=rows.filter(r=>!q||r.username.toLowerCase().includes(q)||r.action.toLowerCase().includes(q));
+    panel.innerHTML=`<table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Score</th><th>XP</th></tr></thead><tbody>
+      ${filtered.map(r=>`<tr><td><small>${esc(new Date(r.created_at).toLocaleString())}</small></td><td><span class="avatar">${esc(r.avatar||'⚡')}</span> ${esc(r.username)}</td><td>${esc(r.action)}</td><td>${r.score||0}</td><td>${r.xp_earned||0}</td></tr>`).join('')}
+    </tbody></table>`;
+  }
+  }catch(e){ panel.innerHTML=`<p style="color:#FF7A9B">${esc(e.message)}</p>`; }
+}
+
+document.querySelectorAll('.tab').forEach(b=> b.addEventListener('click',()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); tab=b.dataset.tab; render(); }));
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('refresh').addEventListener('click',(e)=>{e.preventDefault(); render();});
+document.getElementById('exportBtn').addEventListener('click',()=>{
+  if(!usersData.length) return;
+  const header=['id','username','avatar','genre','xp','played','wins','created_at','last_seen','best'];
+  const csv=[header.join(',')].concat(usersData.map(u=> header.map(h=>{
+    let v = h==='best'? JSON.stringify(u.best): (u[h]??'');
+    v=String(v).replace(/"/g,'""');
+    return '"'+v+'"';
+  }).join(','))).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gameverse_users.csv'; a.click();
+});
+document.getElementById('adminKey').addEventListener('change',(e)=>{
+  sessionStorage.setItem('gv_admin_key', e.target.value);
+  document.getElementById('adminNote').textContent = e.target.value ? 'Admin key saved for this tab.' : '';
+  render();
+});
+document.getElementById('adminKey').value = sessionStorage.getItem('gv_admin_key')||'';
+document.getElementById('backupBtn').addEventListener('click', async()=>{
+  try{
+    const r=await fetch('/api/backup',{method:'POST',headers:adminHeaders()});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Backup failed');
+    alert('Backup written: '+j.file);
+  }catch(e){ alert(e.message); }
+});
+render();
+setInterval(render, 5000);
+</script>
+</body>
+</html>
