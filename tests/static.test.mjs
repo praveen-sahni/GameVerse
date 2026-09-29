@@ -49,8 +49,9 @@ describe('PWA + manifests', () => {
 describe('launch readiness', () => {
   it('footer links to real legal pages', () => {
     const html = read('index.html');
-    assert.ok(html.includes('href="/privacy.html"') && html.includes('href="/terms.html"'));
+    assert.ok(html.includes('href="./privacy.html"') && html.includes('href="./terms.html"'));
     assert.ok(!html.includes('<a href="#">'));
+    assert.ok(!html.match(/href="\/(?!api)[a-z]/));
     assert.ok(fs.existsSync(path.join(root, 'privacy.html')));
     assert.ok(fs.existsSync(path.join(root, 'terms.html')));
   });
