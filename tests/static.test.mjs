@@ -71,6 +71,27 @@ describe('launch readiness', () => {
   });
 });
 
+describe('split hosting', () => {
+  it('all game API calls route through the configurable base', () => {
+    const src = read('js/api.js');
+    assert.ok(src.includes("from './config.js'"));
+    const calls = [...src.matchAll(/fetch\(([^,)]+)/g)].map(m => m[1].trim());
+    assert.ok(calls.length >= 7, 'expected all API calls, got ' + calls.length);
+    for(const c of calls) assert.ok(c.startsWith('apiUrl('), 'hardcoded path: ' + c);
+  });
+  it('admin panel uses the API base too', () => {
+    const src = read('admin.html');
+    assert.ok(src.includes('gv-api-base'));
+    assert.ok(src.includes('apiBase()'));
+    assert.ok(!src.includes("fetch('/api/"));
+  });
+  it('vercel.json keeps the worker fresh and JS cacheable', () => {
+    const v = JSON.parse(read('vercel.json'));
+    const sw = v.headers.find(h => h.source === '/sw.js');
+    assert.ok(sw && JSON.stringify(sw).includes('no-cache'));
+  });
+});
+
 describe('backend hygiene', () => {
   it('server no longer read/writes database.json per request', () => {
     const src = read('server.js');

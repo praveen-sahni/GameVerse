@@ -1,4 +1,25 @@
-# Hosting GameVerse on Railway (persistent, public URL)
+# Hosting GameVerse
+
+## Option A — Frontend on Vercel + API on Railway (recommended split)
+
+Vercel hosts only static files, so the game UI goes there while the
+Node/SQLite API stays on Railway (or your Mac vorübergehend).
+
+1. **Backend first** — deploy the API per "Option B" below. Note its URL,
+   e.g. `https://gameverse-api.up.railway.app`.
+2. **Point the frontend at it** — in `index.html` AND `admin.html`, set:
+   `<meta name="gv-api-base" content="https://gameverse-api.up.railway.app">`
+   (empty = same origin, i.e. local dev; commit + push the change).
+3. **Deploy the UI:**
+   ```bash
+   npx vercel          # log in, accept defaults (static, no build step)
+   npx vercel --prod   # → https://gameverse-xxxx.vercel.app
+   ```
+   Or via dashboard: import the `praveen-sahni/GameVerse` repo, framework
+   preset "Other", no build command, output directory `.`.
+4. Open the Vercel URL → create profile → play → leaderboard fills from the API.
+
+## Option B — Everything on Railway (persistent, public URL)
 
 Railway keeps one container always on and offers a persistent volume, which is
 what the SQLite database needs. Total: ~10 minutes, no credit card for trial.
