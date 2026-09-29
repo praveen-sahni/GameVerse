@@ -38,7 +38,7 @@ let db;
 function openDb(){
   db = new DatabaseSync(DB_PATH);
   // durability under concurrent play + online backups
-  db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous=NORMAL;');
+  db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous=NORMAL; PRAGMA wal_autocheckpoint=200;');
 }
 openDb();
 db.exec(`

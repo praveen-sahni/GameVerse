@@ -1,11 +1,14 @@
 // games/tictac.js — Tic-Tac-Toe Pro (minimax AI). Mounts into env.body; talks to the app only via env.
 export function mountTicTac(env){
-  env.body.innerHTML = `<div style="text-align:center"><div class="hud-row"><button class="btn-mini" data-diff="easy">Easy</button><button class="btn-mini" data-diff="medium">Medium</button><button class="btn-mini" data-diff="hard" style="background:rgba(124,58,237,0.22)">Hard ★</button><span class="hud-pill" id="ttTurn">Your turn (X)</span></div><div class="tictac" id="ttGrid"></div><div style="margin-top:10px;color:#9AA0B5;font-weight:700">You: <b style="color:#00E5CC">X</b> • AI: <b style="color:#FF3B6E">O</b> • <span id="ttScore">W0 D0 L0</span> <span id="ttThink"></span></div></div>`;
+  env.body.innerHTML = `<div style="text-align:center"><div class="hud-row"><button class="btn-mini" data-diff="easy">Easy</button><button class="btn-mini" data-diff="medium">Medium</button><button class="btn-mini" data-diff="hard" style="background:rgba(124,58,237,0.22)">Hard ★</button><span class="hud-pill" id="ttTurn">Your turn (X)</span></div><div class="tt-wrap"><div class="tictac" id="ttGrid"></div><div class="start-overlay" id="ttStart"><div class="start-title">⭕ Tic-Tac-Toe</div><div class="start-hint">You are X • Beat the AI • Three in a row wins</div><button class="btn-primary-lg start-btn" id="ttStartBtn">▶ Start</button></div></div><div style="margin-top:10px;color:#9AA0B5;font-weight:700">You: <b style="color:#00E5CC">X</b> • AI: <b style="color:#FF3B6E">O</b> • <span id="ttScore">W0 D0 L0</span> <span id="ttThink"></span></div></div>`;
   env.bar('First to win glows • Hint = power-up');
   env.restart(env.body);
   const grid = document.getElementById('ttGrid');
   let board = Array(9).fill(''), over = false, diff = 'hard', aiTimer = null;
   let WL = [], scoreW = {w:0, d:0, l:0};
+  // alternate the starting player each round (persists across remounts)
+  let aiStarts = false;
+  try{ aiStarts = localStorage.getItem('gv_tt_starter') === 'ai'; }catch{}
 
   document.querySelectorAll('[data-diff]').forEach(b => {
     b.addEventListener('click', () => {
@@ -69,6 +72,9 @@ export function mountTicTac(env){
     const r = win(board);
     if(!r) return;
     over = true; WL = r.line || [];
+    // flip the starter for the next round so play stays fair
+    aiStarts = !aiStarts;
+    try{ localStorage.setItem('gv_tt_starter', aiStarts ? 'ai' : 'you'); }catch{}
     setTurn(r.winner === 'draw' ? 'Draw!' : (r.winner === 'X' ? 'You win! 🎉' : 'AI wins'));
     if(r.winner === 'X'){
       scoreW.w++; env.setScore(100 + scoreW.w * 10);
@@ -85,7 +91,11 @@ export function mountTicTac(env){
     draw();
   }
 
-  function reset(){ board = Array(9).fill(''); over = false; WL = []; setTurn('Your turn (X)'); draw(); env.setScore(0); }
+  function reset(){
+    board = Array(9).fill(''); over = false; WL = [];
+    draw(); env.setScore(0);
+    if(aiStarts) aiMove(); else setTurn('Your turn (X)');
+  }
 
   env.power(() => {
     if(over) return;
@@ -115,7 +125,7 @@ export function mountTicTac(env){
       if(v === 'X') cell.style.color = '#00E5CC';
       if(v === 'O') cell.style.color = '#FF3B6E';
       const play = () => {
-        if(over || board[i]) return;
+        if(!started || over || board[i]) return;
         board[i] = 'X'; env.beep(600, 0.09, 'sine', 0.1); draw();
         const r = win(board);
         if(r) check(); else aiMove();
@@ -125,6 +135,15 @@ export function mountTicTac(env){
       grid.appendChild(cell);
     });
   }
+  let started = false;
   draw(); env.setScore(0);
+  setTurn('Press Start to play');
+  document.getElementById('ttStartBtn').addEventListener('click', () => {
+    if(started) return;
+    started = true;
+    document.getElementById('ttStart').classList.add('hidden');
+    if(aiStarts && !over){ setTurn('AI starts…'); aiMove(); }
+    else setTurn('Your turn (X)');
+  });
   env.onCleanup(() => { clearTimeout(aiTimer); });
 }

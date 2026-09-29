@@ -1,6 +1,6 @@
 // games/snake.js — Neon Snake. Mounts into env.body; talks to the app only via env.
 export function mountSnake(env){
-  env.body.innerHTML = `<div style="text-align:center"><div class="hud-row"><span class="hud-pill">Level <b id="snakeLvl">1</b></span><span class="hud-pill">Speed <b id="snakeSpd">1x</b></span><span class="hud-pill">🏆 <b id="snakeBest">0</b></span><select id="snakeDiff" class="btn-mini" aria-label="Snake difficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select><select id="snakeMode" class="btn-mini" aria-label="Snake mode"><option value="classic" selected>Walls kill</option><option value="wrap">Wrap walls</option><option value="obstacles">Obstacles</option></select><button class="btn-mini" id="snakePause">⏸ Pause</button></div><div class="canvas-wrap"><canvas id="snakeCanvas" class="game-canvas" width="420" height="420"></canvas><div class="countdown-overlay" id="snakeCount" style="display:none">3</div></div></div>`;
+  env.body.innerHTML = `<div style="text-align:center"><div class="hud-row"><span class="hud-pill">Level <b id="snakeLvl">1</b></span><span class="hud-pill">Speed <b id="snakeSpd">1x</b></span><span class="hud-pill">🏆 <b id="snakeBest">0</b></span><select id="snakeDiff" class="btn-mini" aria-label="Snake difficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select><select id="snakeMode" class="btn-mini" aria-label="Snake mode"><option value="classic" selected>Walls kill</option><option value="wrap">Wrap walls</option><option value="obstacles">Obstacles</option></select><button class="btn-mini" id="snakePause">⏸ Pause</button></div><div class="canvas-wrap"><canvas id="snakeCanvas" class="game-canvas" width="420" height="420"></canvas><div class="countdown-overlay" id="snakeCount" style="display:none">3</div><div class="start-overlay" id="snakeStart"><div class="start-title">🐍 Neon Snake</div><div class="start-hint">Eat red +10 • Gold ★ +30 • Don't hit walls or yourself</div><button class="btn-primary-lg start-btn" id="snakeStartBtn">▶ Start</button></div></div></div>`;
   env.bar('WASD / Arrows • P pause • Red +10 • Gold +30 • Try wrap + obstacles modes');
   env.restart(env.body);
   const canvas = document.getElementById('snakeCanvas'), ctx = canvas.getContext('2d');
@@ -16,12 +16,14 @@ export function mountSnake(env){
   function buildBlocks(){
     blocks = [];
     if(mode !== 'obstacles') return;
-    // deterministic-ish scatter, kept clear of the starting snake
+    // scattered obstacles, kept clear of the snake plus current foods
     let tries = 0;
     while(blocks.length < 8 + level * 2 && tries++ < 300){
       const p = {x:2 + Math.floor(Math.random() * (N - 4)), y:2 + Math.floor(Math.random() * (N - 4))};
       if(snake.some(s => Math.abs(s.x - p.x) + Math.abs(s.y - p.y) < 4)) continue;
       if(blocks.some(b => b.x === p.x && b.y === p.y)) continue;
+      if(p.x === food.x && p.y === food.y) continue;
+      if(gold && p.x === gold.x && p.y === gold.y) continue;
       blocks.push(p);
     }
   }
@@ -144,9 +146,9 @@ export function mountSnake(env){
       score += 10; eats++; ate = true; env.setScore(score); env.beep(880, 0.12, 'sine', 0.15); burst(food.x, food.y, '#FFB800');
       placeFood();
       if(eats % 5 === 0 && !gold){
-        let gp;
-        do{ gp = {x:Math.floor(Math.random() * N), y:Math.floor(Math.random() * N)}; }
-        while(snake.some(s => s.x === gp.x && s.y === gp.y) || (gp.x === food.x && gp.y === food.y));
+        let gp, guard = 0;
+        do{ gp = {x:Math.floor(Math.random() * N), y:Math.floor(Math.random() * N)}; guard++; }
+        while((snake.some(s => s.x === gp.x && s.y === gp.y) || blocked(gp) || (gp.x === food.x && gp.y === food.y)) && guard < 300);
         gold = gp; goldTimer = 140; env.beep(1100, 0.15, 'sine', 0.12);
       }
       if(score % 30 === 0){
@@ -154,6 +156,10 @@ export function mountSnake(env){
         document.getElementById('snakeLvl').textContent = level;
         document.getElementById('snakeSpd').textContent = ((110 / speed).toFixed(1) + 'x');
         env.beep(660, 0.18, 'square', 0.12);
+        if(mode === 'obstacles' && alive){
+          buildBlocks(); placeFood();
+          env.toast('🧱 Level ' + level + ' — fresh obstacles!');
+        }
       }
     } else if(gold && head.x === gold.x && head.y === gold.y){
       score += 30; eats++; ate = true; env.setScore(score);
@@ -184,16 +190,24 @@ export function mountSnake(env){
   })();
 
   const countEl = document.getElementById('snakeCount');
-  countEl.style.display = 'grid';
-  let cd = 3; countEl.textContent = cd; paused = true; draw();
-  const cdInt = setInterval(() => {
-    cd--;
-    if(cd <= 0){ clearInterval(cdInt); countEl.style.display = 'none'; paused = false; last = 0; }
-    else { countEl.textContent = cd; env.beep(500 + (3 - cd) * 150, 0.1, 'sine', 0.1); }
-  }, 420);
+  let started = false, cdInt = null;
+  paused = true; draw();
+  document.getElementById('snakeStartBtn').addEventListener('click', () => {
+    if(started) return;
+    started = true;
+    document.getElementById('snakeStart').classList.add('hidden');
+    countEl.style.display = 'grid';
+    let cd = 3; countEl.textContent = cd;
+    cdInt = setInterval(() => {
+      cd--;
+      if(cd <= 0){ clearInterval(cdInt); countEl.style.display = 'none'; paused = false; last = 0; }
+      else { countEl.textContent = cd; env.beep(500 + (3 - cd) * 150, 0.1, 'sine', 0.1); }
+    }, 420);
+  });
   rafId = requestAnimationFrame(tick);
 
   function togglePause(){
+    if(!started) return;
     paused = !paused;
     document.getElementById('snakePause').textContent = paused ? '▶ Resume' : '⏸ Pause';
     if(!paused){ last = 0; rafId = requestAnimationFrame(tick); }

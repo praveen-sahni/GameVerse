@@ -1,25 +1,37 @@
 // games/runner.js — Runner Rush 2. Mounts into env.body; talks to the app only via env.
 export function mountRunner(env){
-  env.body.innerHTML = `<div class="runner-wrap"><div class="hud-row" style="justify-content:space-between"><span class="hud-pill">Score <b id="runnerScore">0</b> • Best <b id="runnerBest">0</b></span><span class="hud-pill">🪙 <b id="runnerCoins">0</b></span><span class="hud-pill">Speed <b id="runnerSpd">1x</b></span><button class="btn-mini" id="runnerPause">⏸</button></div><canvas id="runnerCanvas" class="runner-canvas" width="760" height="300"></canvas><div style="text-align:center;margin-top:8px;color:#9AA0B5">SPACE / ↑ / Tap • Double-jump • Coins +5 • R restart</div></div>`;
-  env.bar('Coins +5 • Birds fly high • Slow-mo power');
+  env.body.innerHTML = `<div class="runner-wrap"><div class="hud-row" style="justify-content:space-between"><span class="hud-pill">Score <b id="runnerScore">0</b> • Best <b id="runnerBest">0</b></span><span class="hud-pill">🪙 <b id="runnerCoins">0</b></span><span class="hud-pill">Speed <b id="runnerSpd">1x</b></span><button class="btn-mini" id="runnerPause">⏸</button></div><canvas id="runnerCanvas" class="runner-canvas" width="760" height="300"></canvas><div class="start-overlay" id="runStart"><div class="start-title">🏃 Runner Rush</div><div class="start-hint">SPACE / tap to jump • ↓ to duck • Grab 🪙 • Dodge everything</div><button class="btn-primary-lg start-btn" id="runStartBtn">▶ Start</button></div><div style="text-align:center;margin-top:8px;color:#9AA0B5">SPACE / ↑ jump • ↓ / swipe-down duck • Double-jump • R restart</div></div>`;
+  env.bar('Coins +5 • Duck under birds with ↓ • Slow-mo power');
   env.restart(env.body);
   const canvas = document.getElementById('runnerCanvas'), ctx = canvas.getContext('2d');
   const bestPrev = Number(localStorage.getItem('gv_runnerBest') || 0);
   document.getElementById('runnerBest').textContent = bestPrev;
-  const player = {x:72, y:220, w:28, h:28, vy:0, ground:220, jumping:false, jumps:0, squash:0};
+  const player = {x:72, y:220, w:28, h:28, vy:0, ground:220, jumping:false, jumps:0, squash:0, duck:false};
   const obstacles = [], coins = [], clouds = [], stars = [], dust = [];
   let score = 0, coinsGot = 0, speed = 4.2;
   const gravity = 0.78;
-  let running = true, paused = false, frame = 0, raf = null;
+  let running = true, paused = true, started = false, frame = 0, raf = null;
   const runDead = {dead:false};
   for(let i = 0; i < 40; i++) stars.push({x:Math.random() * 760, y:Math.random() * 120, s:Math.random() * 1.4 + 0.4});
   for(let i = 0; i < 5; i++) clouds.push({x:i * 180 + 30, y:38 + i * 14 % 40, s:0.6 + i * 0.18, w:44 + i * 6});
 
-  document.getElementById('runnerPause').addEventListener('click', () => {
-    paused = !paused;
+  document.getElementById('runStartBtn').addEventListener('click', () => {
+    if(started) return;
+    started = true;
+    document.getElementById('runStart').classList.add('hidden');
+    setPaused(false);
+  });
+  function setPaused(v){
+    if(!started && !v) return;
+    paused = v;
     document.getElementById('runnerPause').textContent = paused ? '▶' : '⏸';
     if(!paused) raf = requestAnimationFrame(update);
-  });
+  }
+  document.getElementById('runnerPause').addEventListener('click', () => setPaused(!paused));
+  function onVis(){
+    if(document.hidden && running && !paused){ setPaused(true); env.toast('⏸ Auto-paused — tab hidden'); }
+  }
+  document.addEventListener('visibilitychange', onVis);
 
   function spawnObs(){
     const r = Math.random();
@@ -63,8 +75,10 @@ export function mountRunner(env){
     dust.forEach(d => { d.x += d.vx; d.y += d.vy; d.vy += 0.22; d.life--; });
     for(let i = dust.length - 1; i >= 0; i--) if(dust[i].life <= 0) dust.splice(i, 1);
     for(const o of obstacles){
-      const pw = player.w - 6, ph = player.h - (player.squash ? 4 : 0);
-      if(player.x + 3 < o.x + o.w && player.x + 3 + pw > o.x && player.y + 2 < o.y + o.h && player.y + 2 + ph > o.y){
+      const pw = player.w - 6;
+      const hitY = player.duck ? player.y + player.h * 0.5 : player.y;
+      const ph = player.duck ? player.h * 0.5 : player.h - (player.squash ? 4 : 0);
+      if(player.x + 3 < o.x + o.w && player.x + 3 + pw > o.x && hitY + 2 < o.y + o.h && hitY + 2 + ph > o.y){
         running = false; env.shake(); env.beep(110, 0.4, 'sawtooth', 0.16);
         const s = Math.floor(score / 10) + coinsGot * 2;
         if(s > bestPrev){
@@ -119,8 +133,8 @@ export function mountRunner(env){
       ctx.fillText('$', c.x + 8, cy + 12);
     });
     const bob = player.jumping ? 0 : Math.sin(frame * 0.28) * 1.2;
-    const pw = player.w * (player.squash ? 1.12 : 1);
-    const ph = player.h * (player.jumping ? 1.1 : (player.squash ? 0.86 : 1));
+    const pw = player.w * (player.duck ? 1.22 : (player.squash ? 1.12 : 1));
+    const ph = player.h * (player.duck ? 0.55 : (player.jumping ? 1.1 : (player.squash ? 0.86 : 1)));
     const px = player.x + (player.w - pw) / 2, py = player.y + bob + (player.h - ph);
     ctx.fillStyle = '#00E5CC'; ctx.shadowColor = '#00E5CC'; ctx.shadowBlur = 12;
     ctx.fillRect(px, py, pw, ph); ctx.shadowBlur = 0;
@@ -171,6 +185,7 @@ export function mountRunner(env){
 
   function jump(){
     if(!running || paused) return;
+    player.duck = false;
     if(player.jumps < 2){
       player.vy = -11.6 - player.jumps * 0.6;
       player.jumping = true; player.jumps++;
@@ -178,18 +193,37 @@ export function mountRunner(env){
       env.beep(520 + player.jumps * 90, 0.09, 'sine', 0.1);
     }
   }
+  function duckPulse(ms){
+    if(!running || paused) return;
+    player.duck = true;
+    clearTimeout(duckPulse._t);
+    duckPulse._t = setTimeout(() => { player.duck = false; }, ms || 550);
+  }
   function onKey(e){
     if(e.code === 'Space' || e.key === 'ArrowUp'){ e.preventDefault(); jump(); }
-    if(e.key.toLowerCase() === 'p'){
-      paused = !paused;
-      document.getElementById('runnerPause').textContent = paused ? '▶' : '⏸';
-      if(!paused) raf = requestAnimationFrame(update);
+    if(e.code === 'ArrowDown' || e.key.toLowerCase() === 's'){
+      e.preventDefault();
+      if(!running || paused) return;
+      if(player.jumping){ player.vy = Math.max(player.vy, 9); addDust(player.x + 14, player.y + 20); } // slam down
+      else duckPulse(600);
     }
+    if(e.key.toLowerCase() === 'p'){ setPaused(!paused); }
     if(e.key.toLowerCase() === 'r'){ env.remount(); }
   }
+  function onKeyUp(e){
+    if(e.code === 'ArrowDown' || e.key.toLowerCase() === 's'){ player.duck = false; clearTimeout(duckPulse._t); }
+  }
   window.addEventListener('keydown', onKey);
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); jump(); }, {passive:false});
+  window.addEventListener('keyup', onKeyUp);
+  let tsy = 0;
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); tsy = e.touches[0].clientY; }, {passive:false});
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    const dy = e.changedTouches[0].clientY - tsy;
+    if(dy > 26) duckPulse(550); // swipe down to duck under birds
+    else jump();
+  }, {passive:false});
   canvas.addEventListener('mousedown', jump);
   draw(); update();
-  env.onCleanup(() => { runDead.dead = true; running = false; cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); });
+  env.onCleanup(() => { runDead.dead = true; running = false; cancelAnimationFrame(raf); clearTimeout(duckPulse._t); window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); document.removeEventListener('visibilitychange', onVis); });
 }

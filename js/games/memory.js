@@ -1,6 +1,6 @@
 // games/memory.js — Memory Flip Pro. Mounts into env.body; talks to the app only via env.
 export function mountMemory(env){
-  env.body.innerHTML = `<div style="text-align:center"><div class="hud-row"><span class="hud-pill">⏱ <b id="memTime">0s</b></span><span class="hud-pill">♠ <b id="memMoves">0</b></span><span class="hud-pill">⭐ <b id="memStars">★★★</b></span><span class="hud-pill">🏆 <b id="memBest">0</b></span><select id="memDiff" class="btn-mini" aria-label="Memory difficulty"><option value="6">Easy 6 pairs</option><option value="8" selected>Medium 8 pairs</option><option value="10">Hard 10 pairs</option></select></div><div style="max-width:420px;margin:0 auto 10px"><div class="combo-wrap" style="max-width:100%"><div class="combo-fill" id="memProg"></div></div></div><div id="memGrid" class="memory-grid"></div></div>`;
+  env.body.innerHTML = `<div style="text-align:center"><div class="hud-row"><span class="hud-pill">⏱ <b id="memTime">0s</b></span><span class="hud-pill">♠ <b id="memMoves">0</b></span><span class="hud-pill">⭐ <b id="memStars">★★★</b></span><span class="hud-pill">🔥 <b id="memStreak">x0</b></span><span class="hud-pill">🏆 <b id="memBest">0</b></span><select id="memDiff" class="btn-mini" aria-label="Memory difficulty"><option value="6">Easy 6 pairs</option><option value="8" selected>Medium 8 pairs</option><option value="10">Hard 10 pairs</option></select></div><div style="max-width:420px;margin:0 auto 10px"><div class="combo-wrap" style="max-width:100%"><div class="combo-fill" id="memProg"></div></div></div><div class="mem-wrap"><div id="memGrid" class="memory-grid"></div><div class="start-overlay" id="memStart"><div class="start-title">🧠 Memory Flip</div><div class="start-hint">Flip two cards • Match all pairs • Fewer moves = more stars</div><button class="btn-primary-lg start-btn" id="memStartBtn">▶ Start</button></div></div></div>`;
   env.bar('Match fast • Streak bonus • 1-0 keys work');
   env.restart(env.body);
   const allEmojis = ['🎮','🚀','👾','🎯','💎','⚡','🔥','👑','🐍','🎧','🍕','🚗'];
@@ -15,16 +15,24 @@ export function mountMemory(env){
   const cards = build();
   const flipped = [], matched = new Set();
   let moves = 0, pairs = 0, streak = 0, bestStreak = 0;
-  const start = Date.now();
+  let start = 0; // timer begins when the player presses Start
   let timer = null, locked = false;
   const grid = document.getElementById('memGrid');
   grid.style.gridTemplateColumns = pairCount > 8 ? 'repeat(5,72px)' : 'repeat(4,86px)';
 
+  document.getElementById('memStartBtn').addEventListener('click', () => {
+    document.getElementById('memStart').classList.add('hidden');
+    start = Date.now();
+    updStars();
+  });
   function updStars(){
+    if(!start) return;
     const secs = Math.floor((Date.now() - start) / 1000);
     const t = document.getElementById('memTime'); if(!t) return;
     t.textContent = secs + 's';
     document.getElementById('memMoves').textContent = moves;
+    const st = document.getElementById('memStreak');
+    if(st){ st.textContent = 'x' + streak; st.parentElement.style.borderColor = streak >= 3 ? 'rgba(255,184,0,0.55)' : ''; }
     let stars = '★★★';
     if(moves > pairCount * 2.5 || secs > 50) stars = '★★☆';
     if(moves > pairCount * 3.5 || secs > 80) stars = '★☆☆';
@@ -39,8 +47,8 @@ export function mountMemory(env){
     const c = document.createElement('div');
     c.className = 'mem-card'; c.dataset.i = i;
     c.innerHTML = `<div class="mem-inner"><div class="mem-front">?</div><div class="mem-back">${em}</div></div>`;
-    const activate = () => {
-      if(locked || c.classList.contains('flipped') || matched.has(i)) return;
+      const activate = () => {
+        if(!start || locked || c.classList.contains('flipped') || matched.has(i)) return;
       c.classList.add('flipped'); env.beep(520, 0.08, 'sine', 0.08); flipped.push({c, i, em});
       if(flipped.length === 2){
         moves++; locked = true;

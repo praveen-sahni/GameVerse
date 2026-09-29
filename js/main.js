@@ -509,7 +509,7 @@ document.getElementById('saveProfile').addEventListener('click', async () => {
     setItems(dbUser.items || {});
     setCoinsPill();
   }
-  toast(dbUser ? `Welcome, ${name}! ⚡ (saved to DB)` : `Welcome, ${name}! ⚡ (local)`);
+  toast(`Welcome, ${name}! ⚡`);
   closeProfile(); apiHeartbeat(); refreshCounts();
 });
 document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => {

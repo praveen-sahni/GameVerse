@@ -6,7 +6,7 @@ export function mountSimon(env){
   const grid = document.getElementById('simonGrid');
   const tones = [261.6, 329.6, 392, 523.2];
   document.getElementById('simonBest').textContent = env.loadProfile().stats.best.simon || 0;
-  let seq = [], inputIdx = 0, playing = false, level = 1, speed = 520, dead = false;
+  let seq = [], inputIdx = 0, playing = false, level = 1, speed = 520, dead = false, seqGen = 0;
   const btns = [];
 
   function renderDots(){
@@ -51,6 +51,7 @@ export function mountSimon(env){
       const bonus = level * 28 + Math.max(0, 200 - Math.floor(speed));
       env.setScore(bonus);
       env.confetti(window.innerWidth / 2 - 60 + Math.random() * 120, 200);
+      env.toast(`Level ${level} clear! 🎉`);
       if(level % 4 === 0){
         speed = Math.max(250, speed - 44);
         document.getElementById('simonSpd').textContent = (520 / speed).toFixed(1) + 'x';
@@ -82,13 +83,23 @@ export function mountSimon(env){
     if(seq.length){ env.toast('🔁 Replaying sequence'); playSeq(); }
   });
 
+  function onVis(){
+    if(document.hidden && playing && !dead){
+      seqGen++; // invalidate the in-flight playback loop
+      env.toast('⏸ Paused — replaying sequence on return');
+    } else if(!document.hidden && !dead && seq.length && !playing){
+      inputIdx = 0; renderDots(); playSeq();
+    }
+  }
+  document.addEventListener('visibilitychange', onVis);
   async function playSeq(){
     if(dead) return;
+    const myGen = ++seqGen;
     playing = true; renderDots();
     await new Promise(r => setTimeout(r, 380));
     for(const s of seq){
-      if(dead) return;
-      flash(s); env.beep(tones[s], 0.24, 'sine', 0.13);
+      if(dead || myGen !== seqGen){ playing = false; return; }
+      flash(s); env.beep(tones[s], 0.22, 'sine', 0.13);
       await new Promise(r => setTimeout(r, speed));
       await new Promise(r => setTimeout(r, 130));
     }
@@ -108,5 +119,5 @@ export function mountSimon(env){
   });
   document.getElementById('simonRepeat').addEventListener('click', () => { if(seq.length && !playing) playSeq(); });
   env.setScore(0); renderDots();
-  env.onCleanup(() => { dead = true; window.removeEventListener('keydown', sKey); });
+  env.onCleanup(() => { dead = true; window.removeEventListener('keydown', sKey); document.removeEventListener('visibilitychange', onVis); });
 }
