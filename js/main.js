@@ -1,7 +1,7 @@
 // main.js — app shell: state, hub UI, modals, game lifecycle, boot.
 // Game implementations live in js/games/*. Inter-module flow is one-way:
 // games/* → (env) → main → {utils, profile, theme, api, data, quests}.
-import {toast, confettiBurst, beep, triggerShake, updateSoundBtn, setSound, soundOn} from './utils.js';
+import {toast, confettiBurst, beep, triggerShake, updateSoundBtn, setSound, soundOn, store, sess} from './utils.js';
 import {avatars, loadProfile, saveProfile, saveStats, levelFromXp, defaultStats} from './profile.js';
 import {initTheme} from './theme.js';
 import {apiAuth, apiHeartbeat, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, shopBuy, getUserId} from './api.js';
@@ -134,7 +134,7 @@ async function renderLB(){
 }
 
 function renderActivity(){
-  const acts = JSON.parse(localStorage.getItem('gv_act') || '[]');
+  const acts = JSON.parse(store.get('gv_act') || '[]');
   const c = document.getElementById('activityList');
   c.innerHTML = '';
   if(!acts.length){
@@ -152,9 +152,9 @@ function renderActivity(){
 }
 
 function addActivity(text){
-  const acts = JSON.parse(localStorage.getItem('gv_act') || '[]');
+  const acts = JSON.parse(store.get('gv_act') || '[]');
   acts.unshift({text, time:new Date().toLocaleTimeString()});
-  localStorage.setItem('gv_act', JSON.stringify(acts.slice(0, 12)));
+  store.set('gv_act', JSON.stringify(acts.slice(0, 12)));
   renderActivity();
 }
 
@@ -204,7 +204,7 @@ function avatarUnlocked(a){
   const lock = AVATAR_LOCKS[a];
   if(!lock) return true;
   const items = getItems();
-  return !!(items[lock.flag] || localStorage.getItem(lock.legacy));
+  return !!(items[lock.flag] || store.get(lock.legacy));
 }
 function renderAvatarGrid(){
   const g = document.getElementById('avatarGrid');
@@ -300,7 +300,7 @@ function openGame(id){
     s.textContent = '🌍 ' + rows.slice(0, 3).map(u => `${u.avatar} ${u.username} ${u.score}`).join(' • ');
     box.prepend(s);
   }).catch(() => {});
-  extra.innerHTML = `<div class="mini-lb">${lbHtml}<span>🔥 Streak ${localStorage.getItem('gv_streak') || 1}</span><span>🔊 ${soundOn ? 'ON' : 'OFF'}</span></div><button class="btn-mini" id="extraPower">⚡ Power-up (1/game)</button><button class="btn-mini" id="extraTut">❓ Tutorial</button>`;
+  extra.innerHTML = `<div class="mini-lb">${lbHtml}<span>🔥 Streak ${store.get('gv_streak') || 1}</span><span>🔊 ${soundOn ? 'ON' : 'OFF'}</span></div><button class="btn-mini" id="extraPower">⚡ Power-up (1/game)</button><button class="btn-mini" id="extraTut">❓ Tutorial</button>`;
   document.getElementById('extraPower')?.addEventListener('click', () => {
     window.dispatchEvent(new CustomEvent('gv-powerup', {detail:{game:g.id}}));
     toast('⚡ Power-up used!');
@@ -311,11 +311,11 @@ function openGame(id){
   renderProfile(); addActivity(`Started ${g.title}`);
   try{
     const tk = 'gv_played_' + dayKey();
-    const n = Number(sessionStorage.getItem('gv_playedToday') || localStorage.getItem(tk) || 0) + 1;
-    sessionStorage.setItem('gv_playedToday', n); localStorage.setItem(tk, n);
+    const n = Number(sess.get('gv_playedToday') || store.get(tk) || 0) + 1;
+    sess.set('gv_playedToday', n); store.set(tk, n);
   }catch{}
   try{
-    const gh = JSON.parse(sessionStorage.getItem('gv_ghost') || 'null');
+    const gh = JSON.parse(sess.get('gv_ghost') || 'null');
     if(gh && gh.game === g.id){
       const gd = document.createElement('div');
       gd.className = 'mini-lb'; gd.style.marginTop = '6px';
@@ -327,9 +327,9 @@ function openGame(id){
   }catch{}
   apiSyncStats({action:`Started ${g.title}`, score:0, xp_earned:0}, g.id);
   apiHeartbeat();
-  if(!localStorage.getItem('gv_tut_' + g.id)){
+  if(!store.get('gv_tut_' + g.id)){
     setTimeout(() => showTutorial(g.id), 600);
-    localStorage.setItem('gv_tut_' + g.id, '1');
+    store.set('gv_tut_' + g.id, '1');
   }
 }
 
@@ -364,7 +364,7 @@ function setScore(s){
 
 function awardXp(base){
   const {stats} = loadProfile();
-  const streak = Number(localStorage.getItem('gv_streak') || 1);
+  const streak = Number(store.get('gv_streak') || 1);
   const mult = 1 + Math.min(0.5, (streak - 1) * 0.08);
   const bonus = Math.floor(currentScore / 10);
   const xp = Math.round((base + bonus) * mult);
@@ -375,19 +375,19 @@ function awardXp(base){
   addActivity(`Scored ${currentScore} in ${currentGame.title} (+${xp} XP)`);
   confettiBurst(window.innerWidth / 2, 180);
   const lvl = levelFromXp(stats.xp);
-  if(lvl === 3 && !localStorage.getItem('gv_unlock_3')){ localStorage.setItem('gv_unlock_3', '1'); toast('🎉 Unlocked avatar 👑 at Lv 3!'); confettiBurst(window.innerWidth / 2, 120); }
-  if(lvl === 5 && !localStorage.getItem('gv_unlock_5')){ localStorage.setItem('gv_unlock_5', '1'); toast('💎 Unlocked avatar 💎 at Lv 5!'); confettiBurst(window.innerWidth / 2, 120); }
+  if(lvl === 3 && !store.get('gv_unlock_3')){ store.set('gv_unlock_3', '1'); toast('🎉 Unlocked avatar 👑 at Lv 3!'); confettiBurst(window.innerWidth / 2, 120); }
+  if(lvl === 5 && !store.get('gv_unlock_5')){ store.set('gv_unlock_5', '1'); toast('💎 Unlocked avatar 💎 at Lv 5!'); confettiBurst(window.innerWidth / 2, 120); }
   try{
-    const gh = JSON.parse(sessionStorage.getItem('gv_ghost') || 'null');
+    const gh = JSON.parse(sess.get('gv_ghost') || 'null');
     if(gh && gh.game === currentGame.id && currentScore >= gh.score){
       toast(`👻 You beat ${gh.name}'s ${gh.score}!`);
       confettiBurst(window.innerWidth / 2, 140);
-      sessionStorage.removeItem('gv_ghost');
+      sess.del('gv_ghost');
       document.getElementById('challengeBanner')?.remove();
     }
   }catch{}
   apiSyncStats({action:`Scored ${currentScore} in ${currentGame.title}`, score:currentScore, xp_earned:xp}, currentGame.id);
-  if(questsApi) setTimeout(() => questsApi.renderDaily(Number(localStorage.getItem('gv_streak') || 1)), 400);
+  if(questsApi) setTimeout(() => questsApi.renderDaily(Number(store.get('gv_streak') || 1)), 400);
 }
 
 function injectRestartBar(hint){
@@ -427,7 +427,7 @@ const SHOP = [
 ];
 function setCoinsPill(){
   const el = document.getElementById('coinsCount');
-  if(el) el.textContent = localStorage.getItem('gv_coins') || '0';
+  if(el) el.textContent = store.get('gv_coins') || '0';
 }
 async function refreshWallet(){
   const id = getUserId();
@@ -436,7 +436,7 @@ async function refreshWallet(){
     const users = await fetchUsers();
     const me = users.find(u => String(u.id) === String(id));
     if(me){
-      localStorage.setItem('gv_coins', me.coins || 0);
+      store.set('gv_coins', me.coins || 0);
       setItems(me.items || {});
     }
   }catch{}
@@ -445,7 +445,7 @@ async function refreshWallet(){
 function renderShop(){
   const box = document.getElementById('shopItems');
   if(!box) return;
-  const coins = Number(localStorage.getItem('gv_coins') || 0);
+  const coins = Number(store.get('gv_coins') || 0);
   const items = getItems();
   document.getElementById('shopBalance').textContent = coins;
   box.innerHTML = '';
@@ -469,7 +469,7 @@ function renderShop(){
       btn.disabled = true;
       try{
         const j = await shopBuy(it.id);
-        localStorage.setItem('gv_coins', j.coins);
+        store.set('gv_coins', j.coins);
         setItems(j.items);
         setCoinsPill(); renderShop(); renderAvatarGrid();
         toast(`Bought ${it.icon} ${it.name}!`);
@@ -505,7 +505,7 @@ document.getElementById('saveProfile').addEventListener('click', async () => {
   saveProfile(p); renderProfile(); renderLB();
   const dbUser = await apiAuth(p);
   if(dbUser){
-    localStorage.setItem('gv_coins', dbUser.coins || 0);
+    store.set('gv_coins', dbUser.coins || 0);
     setItems(dbUser.items || {});
     setCoinsPill();
   }
@@ -545,8 +545,8 @@ document.getElementById('howToModal')?.addEventListener('click', (e) => { if(e.t
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !gameModal.classList.contains('hidden')) closeGame(); });
 document.getElementById('resetProgress').addEventListener('click', () => {
   if(confirm('Reset all XP and progress?')){
-    localStorage.removeItem('gv_stats'); localStorage.removeItem('gv_act');
-    localStorage.setItem('gv_stats', JSON.stringify({...defaultStats, best:{}}));
+    store.del('gv_stats'); store.del('gv_act');
+    store.set('gv_stats', JSON.stringify({...defaultStats, best:{}}));
     renderProfile(); renderLB(); renderActivity(); renderGames();
     toast('Progress reset');
   }
@@ -555,9 +555,9 @@ document.getElementById('resetProgress').addEventListener('click', () => {
 questsApi = initQuests({renderProfile, apiSyncStats, openGame, openProfile, games});
 questsApi.checkIncomingChallenge();
 // First-run welcome: no profile and never visited → invite to create one
-const isFirstRun = !localStorage.getItem('gv_lastDay') && !localStorage.getItem('gv_welcomed') && !loadProfile().profile;
+const isFirstRun = !store.get('gv_lastDay') && !store.get('gv_welcomed') && !loadProfile().profile;
 if(isFirstRun){
-  localStorage.setItem('gv_welcomed', '1');
+  store.set('gv_welcomed', '1');
   setTimeout(() => {
     toast('👋 Welcome to GameVerse! Create your profile to save progress.');
     openProfile();
@@ -575,3 +575,4 @@ setTimeout(() => questsApi.updateStreak(), 600);
 setInterval(apiHeartbeat, 30000);
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') apiHeartbeat(); });
 setTimeout(apiHeartbeat, 2000);
+window.__gvBooted = true; // boot watchdog in index.html watches this flag

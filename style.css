@@ -831,7 +831,7 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   .footer{margin:18px 14px 0;padding:14px;text-align:center;justify-content:center}
   /* game modal becomes full-screen sheet */
   .game-modal{padding:0}
-  .game-frame{width:100vw;max-height:100dvh;height:100dvh;border-radius:0;border-left:none;border-right:none}
+  .game-frame{width:100vw;max-height:92vh;max-height:100dvh;height:100vh;height:100dvh;border-radius:0;border-left:none;border-right:none}
   .game-topbar{padding:10px 12px}
   .gt-score{font-size:0.8rem;width:100%;order:3}
   .game-body{padding:12px;min-height:0;align-content:start;justify-items:center}
@@ -854,7 +854,7 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   .simon-btn{width:100%;aspect-ratio:1;height:auto;min-height:120px}
   /* modals */
   .modal{padding:10px}
-  .modal-card{width:94vw;padding:18px;max-height:92dvh;overflow:auto}
+  .modal-card{width:94vw;padding:18px;max-height:92vh;max-height:92dvh;overflow:auto}
   .avatar-grid{grid-template-columns:repeat(4,1fr)}
   .hud-row{font-size:0.8rem;gap:6px}
   .hud-pill{padding:5px 9px;font-size:0.75rem}

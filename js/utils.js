@@ -4,9 +4,51 @@ export let soundOn = true;
 try{ soundOn = localStorage.getItem('gv_sound') !== 'off'; }catch{}
 // (lazy try/catch keeps this module importable in Node for unit tests)
 
+// Crash-proof storage: Safari Private Browsing throws on setItem.
+// Falls back to memory so the app keeps running (progress just won't persist).
+const memFallback = {};
+export const store = {
+  get(k){
+    try{ return localStorage.getItem(k); }
+    catch{ return k in memFallback ? memFallback[k] : null; }
+  },
+  set(k, v){
+    try{ localStorage.setItem(k, v); }
+    catch{ memFallback[k] = String(v); }
+  },
+  del(k){
+    try{ localStorage.removeItem(k); }
+    catch{ delete memFallback[k]; }
+  },
+  keys(){
+    try{
+      const out = [];
+      for(let i = 0; i < localStorage.length; i++) out.push(localStorage.key(i));
+      return out;
+    }catch{ return Object.keys(memFallback); }
+  },
+};
+
+// Same crash-proofing for sessionStorage (throws in old iOS Private mode)
+const sessMem = {};
+export const sess = {
+  get(k){
+    try{ return sessionStorage.getItem(k); }
+    catch{ return k in sessMem ? sessMem[k] : null; }
+  },
+  set(k, v){
+    try{ sessionStorage.setItem(k, v); }
+    catch{ sessMem[k] = String(v); }
+  },
+  del(k){
+    try{ sessionStorage.removeItem(k); }
+    catch{ delete sessMem[k]; }
+  },
+};
+
 export function setSound(v){
   soundOn = !!v;
-  localStorage.setItem('gv_sound', soundOn ? 'on' : 'off');
+  store.set('gv_sound', soundOn ? 'on' : 'off');
   updateSoundBtn();
 }
 

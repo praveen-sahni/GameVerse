@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon.svg">
 <title>GameVerse — Play. Level Up. Repeat.</title>
 <meta name="theme-color" content="#070A14">
 <meta name="description" content="GameVerse — one profile, six addictive browser games. Earn XP, coins, and climb the leaderboard.">
@@ -220,6 +224,33 @@
 
 <div class="toast hidden" id="toast"></div>
 
+<div id="bootError" style="display:none;position:fixed;inset:auto 12px 12px 12px;z-index:999;background:#1A0B14;border:1px solid rgba(255,59,110,0.5);border-radius:14px;padding:14px;color:#fff;font-size:0.9rem"></div>
+<script>
+// Boot watchdog (plain script on purpose — runs even if modules fail).
+// The app sets window.__gvBooted=true once it starts. If that never
+// happens, show exactly why instead of a dead page (iOS diagnostics).
+(function(){
+  window.__gvErrors = [];
+  window.addEventListener('error', function(e){
+    window.__gvErrors.push(String((e && e.message) || e).slice(0, 160));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    window.__gvErrors.push(String((e && e.reason && e.reason.message) || e.reason || e).slice(0, 160));
+  }, true);
+  setTimeout(function(){
+    if(window.__gvBooted) return;
+    var box = document.getElementById('bootError');
+    var detail = window.__gvErrors.length
+      ? 'Error: ' + window.__gvErrors[0]
+      : 'The game code never started (network blocked a file, or this browser is too old).';
+    box.style.display = 'block';
+    box.innerHTML = '<b>⚠️ GameVerse could not start.</b><br>' + detail +
+      '<br><br>Try: 1) Safari (not in-app browser) 2) iOS 15+ 3) reload.' +
+      '<br><button onclick="location.reload()" style="margin-top:10px;padding:10px 18px;border-radius:10px;border:none;background:#FF6A00;color:#fff;font-weight:800">↻ Reload</button>';
+  }, 8000);
+})();
+</script>
 <script type="module" src="js/main.js"></script>
+<noscript><div style="padding:20px;text-align:center">GameVerse needs JavaScript enabled.</div></noscript>
 </body>
 </html>

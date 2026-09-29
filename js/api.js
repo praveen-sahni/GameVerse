@@ -1,9 +1,9 @@
 // api.js — backend sync (auth, heartbeat, stats). Depends only on utils + profile.
-import {toast} from './utils.js';
+import {toast, store} from './utils.js';
 import {loadProfile} from './profile.js';
 
-export function getUserId(){ return localStorage.getItem('gv_userId'); }
-export function getToken(){ return localStorage.getItem('gv_token') || ''; }
+export function getUserId(){ return store.get('gv_userId'); }
+export function getToken(){ return store.get('gv_token') || ''; }
 
 export async function apiAuth(profile){
   const pin = document.getElementById('pPin')?.value.trim() || '';
@@ -14,8 +14,8 @@ export async function apiAuth(profile){
         website: document.getElementById('pWebsite')?.value || ''})});
     if(!r.ok){ const err = await r.json().catch(() => ({error:'auth failed'})); toast(err.error || 'Auth failed'); throw new Error(err.error); }
     const data = await r.json();
-    localStorage.setItem('gv_userId', data.user.id);
-    localStorage.setItem('gv_token', data.token || '');
+    store.set('gv_userId', data.user.id);
+    store.set('gv_token', data.token || '');
     return data.user;
   }catch(e){ if(e.message !== 'pin') console.warn('DB offline', e); return null; }
 }

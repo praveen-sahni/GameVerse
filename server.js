@@ -12,9 +12,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = process.env.GAMEVERSE_DB || path.join(__dirname, 'gameverse.db');
 const JSON_PATH = path.join(__dirname, 'database.json');
-const BACKUP_DIR = path.join(__dirname, 'backups');
+const BACKUP_DIR = process.env.GAMEVERSE_BACKUPS || path.join(__dirname, 'backups');
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 
+// Behind a tunnel/reverse proxy the client IP and proto arrive via
+// X-Forwarded-* — trust the local proxy so rate limits see real IPs
+// and req.secure reflects the public HTTPS scheme.
+if(process.env.BEHIND_PROXY) app.set('trust proxy', 1);
 // Minimal security headers (CSP omitted: page uses inline scripts/styles).
 // Registered BEFORE static serving so every response — pages, JS, API — carries them.
 app.use((req, res, next) => {

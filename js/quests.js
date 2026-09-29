@@ -1,13 +1,13 @@
 // quests.js — streaks, rotating daily/weekly quests, challenge links.
 // Pure helpers are exported for unit tests; initQuests(deps) wires DOM + side effects.
-import {toast, confettiBurst} from './utils.js';
+import {toast, confettiBurst, store, sess} from './utils.js';
 import {loadProfile, saveStats} from './profile.js';
 
 // Local wallet cache (server is source of truth; main.js refreshes via /api/users)
 export function getItems(){
-  try{ return JSON.parse(localStorage.getItem('gv_items') || '{}'); }catch{ return {}; }
+  try{ return JSON.parse(store.get('gv_items') || '{}'); }catch{ return {}; }
 }
-export function setItems(it){ localStorage.setItem('gv_items', JSON.stringify(it || {})); }
+export function setItems(it){ store.set('gv_items', JSON.stringify(it || {})); }
 
 export const QUEST_POOL = [
   {id:'q-snake50', game:'snake', label:'🐍 Score 50 in Snake', xp:40, check:s => (s.best.snake || 0) >= 50},
@@ -20,7 +20,7 @@ export const QUEST_POOL = [
   {id:'q-run250', game:'runner', label:'🏃 Score 250 in Runner', xp:80, check:s => (s.best.runner || 0) >= 250},
   {id:'q-simon5', game:'simon', label:'✨ Reach Simon level 5', xp:50, check:s => (s.best.simon || 0) >= 112},
   {id:'q-ttt-win', game:'tictac', label:'⭕ Beat TicTacToe AI', xp:40, check:s => (s.best.tictac || 0) >= 100},
-  {id:'q-play3', game:null, label:'🎮 Play 3 games today', xp:30, check:() => Number(sessionStorage.getItem('gv_playedToday') || 0) >= 3},
+  {id:'q-play3', game:null, label:'🎮 Play 3 games today', xp:30, check:() => Number(sess.get('gv_playedToday') || 0) >= 3},
   {id:'q-xp200', game:null, label:'⚡ Earn 200 XP total', xp:30, check:s => s.xp >= 200},
 ];
 export const WEEKLY_QUEST = {id:'q-weekly', game:null, label:'🏆 Weekly: play all 6 games', xp:150, check:s => Object.keys(s.best || {}).length >= 6};
@@ -69,8 +69,7 @@ export function initQuests(deps){
       const d = new Date(); d.setDate(d.getDate() - i);
       const iso = d.toISOString().slice(0, 10);
       let n = 0;
-      for(let k = 0; k < localStorage.length; k++){
-        const key = localStorage.key(k);
+      for(const key of store.keys()){
         if(key && key.startsWith('gv_claimed_d:' + iso + ':')) n++;
       }
       const wd = d.toLocaleDateString(undefined, {weekday:'short'});
@@ -84,8 +83,8 @@ export function initQuests(deps){
     const chips = [];
     if(!profile) chips.push(`<button class="daily-chip active" data-onboard="profile" style="cursor:pointer">① Create your profile →</button>`);
     else if((stats.played || 0) < 1) chips.push(`<button class="daily-chip active" data-onboard="play" style="cursor:pointer">② Play your first game →</button>`);
-    else if(!localStorage.getItem('gv_onboard_done')){
-      localStorage.setItem('gv_onboard_done', '1');
+    else if(!store.get('gv_onboard_done')){
+      store.set('gv_onboard_done', '1');
       stats.xp += 50; saveStats(stats);
       setTimeout(() => { toast('🎉 Onboarding complete! +50 XP'); }, 1200);
       apiSyncStats({action:'Onboarding complete', score:0, xp_earned:50});
@@ -104,8 +103,8 @@ export function initQuests(deps){
     all.forEach(q => {
       const done = q.check(stats);
       const ckey = 'gv_claimed_' + q.key;
-      if(done && !localStorage.getItem(ckey)){
-        localStorage.setItem(ckey, '1');
+      if(done && !store.get(ckey)){
+        store.set(ckey, '1');
         stats.xp += q.xp; saveStats(stats);
         newlyDone++;
         setTimeout(() => { toast(`✅ Quest done: ${q.label} +${q.xp} XP`); confettiBurst(window.innerWidth / 2, 160); }, 400 * newlyDone);
@@ -150,21 +149,21 @@ export function initQuests(deps){
     accept.addEventListener('click', () => openGame(ch.game));
     const dismiss = document.createElement('button');
     dismiss.className = 'btn-mini'; dismiss.textContent = 'Dismiss';
-    dismiss.addEventListener('click', () => { bar.remove(); history.replaceState({}, '', location.pathname); sessionStorage.removeItem('gv_ghost'); });
+    dismiss.addEventListener('click', () => { bar.remove(); history.replaceState({}, '', location.pathname); sess.del('gv_ghost'); });
     bar.appendChild(accept); bar.appendChild(dismiss);
   }
 
   function checkIncomingChallenge(){
     const ch = parseChallenge(location.search);
     if(!ch) return;
-    sessionStorage.setItem('gv_ghost', JSON.stringify(ch));
+    sess.set('gv_ghost', JSON.stringify(ch));
     setTimeout(() => { showChallengeBanner(ch); toast(`👻 Challenge: beat ${ch.score}!`); }, 800);
   }
 
   function updateStreak(){
     const today = new Date().toDateString();
-    const last = localStorage.getItem('gv_lastDay');
-    let streak = Number(localStorage.getItem('gv_streak') || 0);
+    const last = store.get('gv_lastDay');
+    let streak = Number(store.get('gv_streak') || 0);
     if(last !== today){
       const y = new Date(); y.setDate(y.getDate() - 1);
       if(last === y.toDateString()) streak += 1;
@@ -178,8 +177,8 @@ export function initQuests(deps){
         } else streak = 1;
       }
       else streak = 1;
-      localStorage.setItem('gv_streak', streak);
-      localStorage.setItem('gv_lastDay', today);
+      store.set('gv_streak', streak);
+      store.set('gv_lastDay', today);
       const bonus = 20 + Math.min(30, streak * 5);
       const s = loadProfile().stats; s.xp += bonus; saveStats(s);
       setTimeout(() => toast(`🔥 Day ${streak} streak! +${bonus} XP daily bonus`), 900);
