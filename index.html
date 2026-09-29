@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#070A14">
 <!-- Split hosting: point this at your API (e.g. Railway) when the frontend
      is deployed statically (e.g. Vercel). Empty = same origin. -->
-<meta name="gv-api-base" content="">
+<meta name="gv-api-base" content="https://gameverse-production-e0d6.up.railway.app">
 <meta name="description" content="GameVerse — one profile, six addictive browser games. Earn XP, coins, and climb the leaderboard.">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
@@ -35,7 +35,7 @@
       <a href="#games" class="nav-link active" aria-current="page">Games</a>
       <a href="#lb" class="nav-link">Leaderboard</a>
       <a href="#" id="nav-profile-btn" class="nav-link" aria-label="Open profile">Profile</a>
-      <a href="/admin.html" class="nav-link" target="_blank" aria-label="Open admin dashboard">Admin DB ↗</a>
+      <a href="./admin.html" class="nav-link" target="_blank" aria-label="Open admin dashboard">Admin DB ↗</a>
     </div>
     <div class="nav-actions">
       <div class="search" role="search"><span aria-hidden="true">⌕</span><input id="searchInput" placeholder="Search games..." aria-label="Search games"></div>
@@ -138,7 +138,7 @@
     <h3>⚡ Recent Activity</h3>
     <div class="activity" id="activityList"></div>
     <div class="panel-foot">
-      <span>Progress syncs to the GameVerse database when the server is running. <a href="/admin.html" style="color:#7C3AED;font-weight:800" target="_blank">View DB →</a></span>
+      <span>Progress syncs to the GameVerse database when the server is running. <a href="./admin.html" style="color:#7C3AED;font-weight:800" target="_blank">View DB →</a></span>
       <button class="btn-mini" id="resetProgress">Reset Progress</button>
     </div>
   </div>
@@ -146,7 +146,7 @@
 
 <footer class="footer">
   <div>© 2026 GameVerse — Crafted for players. One profile unlocks everything. <span class="muted">No download. Play instantly.</span></div>
-  <div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
+  <div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a></div>
 </footer>
 
 <!-- PROFILE MODAL -->
