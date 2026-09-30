@@ -1,22 +1,41 @@
-// games/blaster.js — Aim Blaster+ v3: layered bullseyes, shockwave impacts,
-// custom crosshair, overlap-free spawning, countdown start, rising hit pitch.
-// Mounts into env.body; talks to the app only via env. Scoring math unchanged.
+// games/blaster.js — Aim Blaster+ v4: layered bullseyes, shockwave impacts,
+// custom crosshair, overlap-free spawning, countdown start, rising hit pitch,
+// reaction bonus, jackpot target, tier callouts, true pause-freeze, end panel.
+// Mounts into env.body; talks to the app only via env. XP formula unchanged.
 export function mountBlaster(env){
-  env.body.innerHTML = `<div style="text-align:center;width:100%"><div class="hud-row"><span class="hud-pill">⏱ <b id="blasterTime">30</b>s</span><span class="hud-pill">🎯 <b id="blasterHits">0</b></span><span class="hud-pill">📊 <b id="blasterAcc">100%</b></span><span class="hud-pill" id="blasterComboPill">🔥 <b id="blasterCombo">x1</b></span><span class="hud-pill">Lv <b id="blasterLvl">1</b></span><button class="btn-mini" id="blasterPause">⏸</button><div class="combo-wrap"><div class="combo-fill" id="blasterComboFill"></div></div><div style="flex:1;min-width:100px;max-width:160px;height:6px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden"><div id="blasterBar" style="height:100%;width:100%;background:linear-gradient(90deg,#00E5CC,#FFB800);transition:width 0.2s"></div></div></div><div class="blaster-area" id="blasterArea"><div class="bl-xhair" id="blXhair"></div><div class="bl-count hidden" id="blCount">3</div><div class="start-overlay" id="blasterStart"><div class="start-title">🎯 Aim Blaster</div><div class="start-hint">Hit targets fast • Gold ★ bonus • Avoid 💣 • 30 seconds</div><button class="btn-primary-lg start-btn" id="blasterStartBtn">▶ Start</button></div></div></div>`;
-  env.bar('Gold ★ +22 • Bomb −12 • Lv2+ targets drift • Last 5s = sudden-death 2x');
+  env.body.innerHTML = `<div style="text-align:center;width:100%"><div class="hud-row"><span class="hud-pill">⏱ <b id="blasterTime">30</b>s</span><span class="hud-pill">🎯 <b id="blasterHits">0</b></span><span class="hud-pill">📊 <b id="blasterAcc">100%</b></span><span class="hud-pill" id="blasterComboPill">🔥 <b id="blasterCombo">x1</b></span><span class="hud-pill">Lv <b id="blasterLvl">1</b></span><button class="btn-mini" id="blasterPause">⏸</button><div class="combo-wrap"><div class="combo-fill" id="blasterComboFill"></div></div><div style="flex:1;min-width:100px;max-width:160px;height:6px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden"><div id="blasterBar" style="height:100%;width:100%;background:linear-gradient(90deg,#00E5CC,#FFB800);transition:width 0.2s"></div></div></div><div class="blaster-area" id="blasterArea"><div class="bl-xhair" id="blXhair"></div><div class="bl-count hidden" id="blCount">3</div><div class="start-overlay" id="blasterStart"><div class="start-title">🎯 Aim Blaster</div><div class="start-hint">Hit targets fast — quicker hits pay more • Gold ★ • Jackpot 💰 • Avoid 💣</div><button class="btn-primary-lg start-btn" id="blasterStartBtn">▶ Start</button></div></div></div>`;
+  env.bar('Fast hits pay more • Gold ★ • Jackpot 💰 • Lv2+ targets drift • Sudden-death 2x');
   env.restart(env.body);
   const area = document.getElementById('blasterArea');
   const xhair = document.getElementById('blXhair');
   let hits = 0, clicks = 0, time = 30;
   let alive = true, paused = false, started = false;
   let combo = 0, maxCombo = 0, level = 1, sudden = false;
-  let timer = null, spawnTimer = null, decayTimer = null, comboLife = 0, spawnRate = 380;
-  const live = []; // live targets for overlap-free spawning
+  let timer = null, spawnTimer = null, decayTimer = null, slowT = null;
+  let comboLife = 0, spawnRate = 380;
+  const live = []; // live target entries for overlap-free spawning + pause freeze
 
   function setPaused(v){
+    if(v === paused) return;
     paused = v;
     const b = document.getElementById('blasterPause');
     if(b) b.textContent = paused ? '▶' : '⏸';
+    // true freeze: disarm every target's timers, banking remaining life
+    const now = Date.now();
+    live.forEach(o => {
+      if(o.gone) return;
+      if(v){
+        clearTimeout(o.kill); clearInterval(o.shrink);
+        o.kill = null; o.shrink = null;
+        o.remaining = Math.max(150, o.life - (now - o.born));
+      } else {
+        o.born = Date.now();
+        o.life = o.remaining || o.life;
+        o.remaining = 0;
+        o.shrink = setInterval(() => shrinkTick(o), 60);
+        o.kill = setTimeout(() => expireTarget(o), o.life);
+      }
+    });
   }
   document.getElementById('blasterPause').addEventListener('click', () => setPaused(!paused));
   function onVis(){
@@ -84,7 +103,52 @@ export function mountBlaster(env){
     }
   }
 
-  const GLYPHS = {normal:'◎', gold:'★', bomb:'💣', freeze:'❄'};
+  function callout(x, y, text){
+    const c = document.createElement('div');
+    c.className = 'bl-callout';
+    c.textContent = text;
+    c.style.left = x + 'px'; c.style.top = y + 'px';
+    area.appendChild(c);
+    requestAnimationFrame(() => { c.style.transform = 'translate(-50%,-64px) scale(1.08)'; c.style.opacity = '0'; });
+    setTimeout(() => c.remove(), 780);
+  }
+
+  function dropTarget(o){
+    const i = live.indexOf(o);
+    if(i !== -1) live.splice(i, 1);
+  }
+  function shrinkTick(o){
+    const t = o.el;
+    if(!document.body.contains(t)) return;
+    if(!paused && alive && (o.vx || o.vy)){
+      const maxX = Math.max(0, area.clientWidth - o.size), maxY = Math.max(0, area.clientHeight - o.size);
+      o.x += o.vx; o.y += o.vy;
+      if(o.x < 0 || o.x > maxX){ o.vx *= -1; o.x = Math.max(0, Math.min(maxX, o.x)); }
+      if(o.y < 0 || o.y > maxY){ o.vy *= -1; o.y = Math.max(0, Math.min(maxY, o.y)); }
+      t.style.left = o.x + 'px'; t.style.top = o.y + 'px';
+    }
+    const p = 1 - (Date.now() - o.born) / o.life;
+    t.style.transform = `scale(${Math.max(0.35, p)})`;
+  }
+  function expireTarget(o){
+    if(o.gone) return;
+    o.gone = true;
+    clearInterval(o.shrink); dropTarget(o);
+    o.el.style.transform = 'scale(0)';
+    setTimeout(() => o.el.remove(), 170);
+    combo = 0; comboLife = 0;
+    const cc = document.getElementById('blasterCombo');
+    if(cc) cc.textContent = 'x1';
+    document.getElementById('blasterComboPill')?.classList.remove('combo-hot');
+  }
+  function armTarget(o){
+    o.born = Date.now();
+    o.shrink = setInterval(() => shrinkTick(o), 60);
+    o.kill = setTimeout(() => expireTarget(o), o.life);
+  }
+
+  const GLYPHS = {normal:'◎', gold:'★', bomb:'💣', freeze:'❄', jackpot:'💰'};
+  const TIERS = {5:'NICE!', 10:'RAMPAGE!', 15:'ON FIRE 🔥', 20:'UNSTOPPABLE!', 30:'GODLIKE ✨'};
   function spawn(){
     if(!alive || paused || !started) return;
     if(live.length >= 6) return; // never flood the arena
@@ -93,61 +157,36 @@ export function mountBlaster(env){
     if(roll > 0.86){ type = 'gold'; points = 22; size = 44; life = 880; }
     if(roll > 0.955){ type = 'bomb'; points = -12; size = 50; life = 980; }
     if(level >= 3 && Math.random() < 0.12){ type = 'freeze'; points = 15; size = 46; life = 1000; }
+    if(Math.random() < 0.02){ type = 'jackpot'; points = 50; size = 42; life = 800; } // rare big prize
     const spot = freeSpot(size);
     if(!spot) return;
-    let {x, y} = spot;
+    const o = {
+      x: spot.x, y: spot.y, size, life, born: 0, remaining: 0,
+      kill: null, shrink: null, gone: false, type, points, vx: 0, vy: 0, el: null,
+    };
     // drifting targets from level 2 — faster each level (bombs stay still)
-    let vx = 0, vy = 0;
     if(level >= 2 && type !== 'bomb'){
       const sp = 0.5 + (level - 2) * 0.28;
       const a = Math.random() * Math.PI * 2;
-      vx = Math.cos(a) * sp; vy = Math.sin(a) * sp;
+      o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp;
     }
     const t = document.createElement('div');
     t.className = 'target bl-' + type;
-    t.style.left = x + 'px'; t.style.top = y + 'px';
+    t.style.left = o.x + 'px'; t.style.top = o.y + 'px';
     t.style.width = size + 'px'; t.style.height = size + 'px';
     t.innerHTML = `<div class="bl-ring"></div><div class="bl-core">${GLYPHS[type]}</div>`;
     t.style.transform = 'scale(0.6)'; t.style.transition = 'transform 0.16s';
     requestAnimationFrame(() => { if(!paused) t.style.transform = 'scale(1)'; });
-    const entry = {x, y, size, el:t};
-    live.push(entry);
-    const drop = () => {
-      const i = live.indexOf(entry);
-      if(i !== -1) live.splice(i, 1);
-    };
-    const born = Date.now();
-    const shrink = setInterval(() => {
-      if(!document.body.contains(t)){ clearInterval(shrink); drop(); return; }
-      if(!paused && alive && (vx || vy)){
-        const maxX = Math.max(0, area.clientWidth - size), maxY = Math.max(0, area.clientHeight - size);
-        x += vx; y += vy;
-        entry.x = x; entry.y = y;
-        if(x < 0 || x > maxX){ vx *= -1; x = Math.max(0, Math.min(maxX, x)); }
-        if(y < 0 || y > maxY){ vy *= -1; y = Math.max(0, Math.min(maxY, y)); }
-        t.style.left = x + 'px'; t.style.top = y + 'px';
-      }
-      const p = 1 - (Date.now() - born) / life;
-      t.style.transform = `scale(${Math.max(0.35, p)})`;
-    }, 60);
-    let gone = false;
-    const kill = setTimeout(() => {
-      clearInterval(shrink); drop();
-      if(!gone){
-        t.style.transform = 'scale(0)';
-        setTimeout(() => t.remove(), 170);
-        combo = 0; comboLife = 0;
-        const cc = document.getElementById('blasterCombo');
-        if(cc) cc.textContent = 'x1';
-        document.getElementById('blasterComboPill')?.classList.remove('combo-hot');
-      }
-    }, life);
+    o.el = t;
+    live.push(o);
+    armTarget(o);
     t.addEventListener('click', e => {
       e.stopPropagation();
-      if(gone || !alive || paused) return;
-      gone = true; clearTimeout(kill); clearInterval(shrink); drop();
+      if(o.gone || !alive || paused) return;
+      o.gone = true; clearTimeout(o.kill); clearInterval(o.shrink); dropTarget(o);
       clicks++;
-      const cx = x + size / 2, cy = y + size / 2;
+      const cx = o.x + o.size / 2, cy = o.y + o.size / 2;
+      const react = Math.max(0, 1 - (Date.now() - o.born) / o.life); // 1 = instant hit
       if(type === 'bomb'){
         hits = Math.max(0, hits - 1); combo = 0; comboLife = 0;
         env.shake(); env.beep(120, 0.28, 'sawtooth', 0.14);
@@ -161,8 +200,13 @@ export function mountBlaster(env){
       } else {
         hits++; combo++; comboLife = 2200; maxCombo = Math.max(maxCombo, combo);
         env.beep(Math.min(1250, 640 + combo * 22), 0.09, 'sine', 0.12);
-        impact(cx, cy, size, type === 'gold' ? '#FFD60A' : '#00E5CC');
-        if(type === 'gold'){ const r = t.getBoundingClientRect(); env.confetti(r.left + r.width / 2, r.top + r.height / 2); }
+        impact(cx, cy, size, type === 'gold' ? '#FFD60A' : type === 'jackpot' ? '#FF6A00' : '#00E5CC');
+        if(type === 'gold' || type === 'jackpot'){
+          const r = t.getBoundingClientRect();
+          env.confetti(r.left + r.width / 2, r.top + r.height / 2);
+        }
+        if(type === 'jackpot') env.toast('💰 JACKPOT +50!');
+        if(TIERS[combo]) callout(cx, cy - 20, TIERS[combo]);
         if(hits % 12 === 0){
           level++; document.getElementById('blasterLvl').textContent = level;
           clearInterval(spawnTimer); spawnRate = Math.max(200, spawnRate - 35);
@@ -175,7 +219,8 @@ export function mountBlaster(env){
       if(pill) pill.classList.toggle('combo-hot', combo >= 8);
       t.style.transform = 'scale(1.35)'; t.style.opacity = '0.6';
       setTimeout(() => t.remove(), 110);
-      let pts = type === 'bomb' ? points : points + Math.min(14, combo * 1.6);
+      let pts = type === 'bomb' ? points : points + Math.min(14, combo * 1.6) + (type === 'jackpot' ? 40 : 0);
+      if(type !== 'bomb') pts += Math.round(react * 8); // reaction bonus: faster = richer
       if(sudden && pts > 0) pts *= 2;
       env.setScore(Math.max(0, hits * 10 + Math.floor(maxCombo * 3) + (type === 'gold' ? 8 : 0)));
       document.getElementById('blasterHits').textContent = hits;
@@ -184,7 +229,7 @@ export function mountBlaster(env){
       const p = document.createElement('div');
       p.textContent = (pts > 0 ? '+' : '') + pts;
       p.className = 'bl-pts';
-      p.style.left = x + 'px'; p.style.top = y + 'px';
+      p.style.left = o.x + 'px'; p.style.top = o.y + 'px';
       p.style.color = pts > 0 ? '#22C55E' : '#FF1A4B';
       area.appendChild(p);
       requestAnimationFrame(() => { p.style.transform = 'translateY(-24px)'; p.style.opacity = '0'; });
@@ -215,13 +260,35 @@ export function mountBlaster(env){
     const restoreRate = spawnRate;
     clearInterval(spawnTimer);
     spawnTimer = setInterval(spawn, 720);
-    setTimeout(() => {
+    clearTimeout(slowT);
+    slowT = setTimeout(() => {
+      if(!alive) return;
       clearInterval(spawnTimer);
       spawnTimer = setInterval(spawn, restoreRate);
       env.toast('Slow-Mo ended');
     }, 5000);
     env.beep(900, 0.18, 'sine', 0.12);
   });
+
+  function gradeOf(acc){
+    if(acc >= 90 && hits >= 20) return ['S', '#FFD60A'];
+    if(acc >= 80) return ['A', '#00E5CC'];
+    if(acc >= 65) return ['B', '#7CFC00'];
+    if(acc >= 50) return ['C', '#FFB800'];
+    return ['D', '#9AA0B5'];
+  }
+  function showSummary(acc, score, best, isRecord){
+    const [g, color] = gradeOf(acc);
+    const el = document.createElement('div');
+    el.className = 'bl-end';
+    const row = (k, v) => `<div class="bl-end-row"><span>${k}</span><b>${v}</b></div>`;
+    el.innerHTML = `<div class="bl-grade" style="color:${color};text-shadow:0 0 26px ${color}">${g}</div>
+      <div class="bl-end-title">TIME UP!</div>
+      ${row('Score', score)}${row('Best', best + (isRecord ? ' 🏆 NEW!' : ''))}${row('Hits', hits)}${row('Accuracy', acc + '%')}${row('Best combo', 'x' + (maxCombo ? (1 + maxCombo * 0.2).toFixed(1) : '1'))}${row('Level', level)}
+      <button class="btn-primary-lg" id="blAgain">↻ Play Again</button>`;
+    area.appendChild(el);
+    document.getElementById('blAgain').addEventListener('click', () => env.remount());
+  }
 
   timer = setInterval(() => {
     if(paused || !started) return;
@@ -242,10 +309,15 @@ export function mountBlaster(env){
     if(time <= 0){
       alive = false;
       clearInterval(timer); clearInterval(spawnTimer); clearInterval(decayTimer);
+      live.slice().forEach(o => { o.gone = true; clearTimeout(o.kill); clearInterval(o.shrink); });
+      live.length = 0;
       const acc = Math.round(hits / Math.max(1, clicks) * 100);
+      const score = Number(document.getElementById('gameScore')?.textContent) || 0;
+      const prevBest = env.loadProfile().stats.best.blaster || 0;
       env.confetti(area.getBoundingClientRect().left + area.offsetWidth / 2, area.getBoundingClientRect().top + 80);
       env.awardXp(70 + Math.floor(acc / 10) + level * 4);
-      env.toast(`Time! Hits ${hits} • Acc ${acc}% • Lv${level} • Best combo x${(1 + maxCombo * 0.2).toFixed(1)}`);
+      const best = env.loadProfile().stats.best.blaster || 0;
+      showSummary(acc, score, best, score > 0 && score >= prevBest);
     }
   }, 1000);
 
@@ -278,7 +350,7 @@ export function mountBlaster(env){
   env.setScore(0);
   env.onCleanup(() => {
     alive = false;
-    clearInterval(timer); clearInterval(spawnTimer); clearInterval(decayTimer); clearInterval(cdInt);
+    clearInterval(timer); clearInterval(spawnTimer); clearInterval(decayTimer); clearInterval(cdInt); clearTimeout(slowT);
     document.removeEventListener('visibilitychange', onVis);
   });
 }

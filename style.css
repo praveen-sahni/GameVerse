@@ -498,7 +498,9 @@ button{font-family:inherit}
   background:linear-gradient(135deg,#7C3AED 0%, #06B6D4 100%);font-size:1.15rem;
   box-shadow:0 4px 14px rgba(124,58,237,0.3); border:1px solid rgba(255,255,255,0.1);
 }
-.lb-name{font-weight:850}
+.lb-name{font-weight:850;color:#fff}
+#navName,.pc-name{color:#fff}
+[data-theme="frost"] #navName,[data-theme="frost"] .pc-name,[data-theme="frost"] .lb-name{color:#0F172A}
 .lb-xp{margin-left:auto;color:var(--muted);font-size:0.85rem}
 .lb-xp b{color:white;font-family:'JetBrains Mono',monospace}
 .activity{display:flex;flex-direction:column;gap:9px;max-height:340px;overflow:auto; scrollbar-width:thin}
@@ -692,6 +694,18 @@ button{font-family:inherit}
 @keyframes blMiss{from{transform:scale(0.4);opacity:1}to{transform:scale(1.5);opacity:0}}
 .bl-pts{position:absolute;font-weight:900;pointer-events:none;transform:translateY(0);transition:all 0.55s;text-shadow:0 2px 8px rgba(0,0,0,0.6);z-index:4}
 .combo-hot{color:#FFD60A !important;text-shadow:0 0 12px rgba(255,184,0,0.7)}
+.bl-jackpot{background:radial-gradient(circle at 35% 30%, #FFE45E, #c2410c);box-shadow:0 10px 24px rgba(0,0,0,0.42), 0 0 26px rgba(255,200,20,0.75);animation:blJackGlow 0.6s ease-in-out infinite}
+.bl-jackpot .bl-ring{border-color:#fffbeb}
+.bl-jackpot .bl-core{color:#431407;font-weight:900}
+@keyframes blJackGlow{0%,100%{box-shadow:0 10px 24px rgba(0,0,0,0.42), 0 0 18px rgba(255,200,20,0.5)}50%{box-shadow:0 10px 24px rgba(0,0,0,0.42), 0 0 34px rgba(255,200,20,0.9)}}
+.bl-callout{position:absolute;font-family:'Orbitron',sans-serif;font-weight:900;font-size:1.05rem;color:#FFD60A;text-shadow:0 0 14px rgba(255,184,0,0.8), 0 2px 6px rgba(0,0,0,0.6);pointer-events:none;z-index:4;transform:translate(-50%,0);transition:transform 0.75s ease-out, opacity 0.75s;white-space:nowrap}
+.bl-end{position:absolute;inset:0;z-index:7;display:grid;place-items:center;align-content:center;gap:8px;background:rgba(4,6,18,0.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:18px;padding:20px;text-align:center;animation:blEndIn 0.45s cubic-bezier(0.16,1,0.3,1)}
+@keyframes blEndIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+.bl-grade{font-family:'Orbitron',sans-serif;font-weight:900;font-size:3.6rem;line-height:1}
+.bl-end-title{font-family:'Orbitron',sans-serif;font-weight:800;letter-spacing:0.14em;font-size:0.95rem;color:#fff}
+.bl-end-row{display:flex;justify-content:space-between;gap:26px;width:min(280px,80%);margin:0 auto;font-size:0.9rem;color:#C8CEE6}
+.bl-end-row b{color:#fff;font-family:'JetBrains Mono',monospace}
+.bl-end .btn-primary-lg{margin-top:8px}
 /* start gate — every game begins only after the player presses Start */
 .start-overlay{position:absolute;inset:0;z-index:8;display:grid;place-items:center;align-content:center;gap:12px;background:rgba(4,6,18,0.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:16px;padding:22px;text-align:center}
 .start-overlay.hidden{display:none}
