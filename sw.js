@@ -1,11 +1,14 @@
-// GameVerse service worker — cache-first for same-origin GETs (app shell + game modules).
-const V = 'gv-v2';
+// GameVerse service worker — cache-first for same-origin GETs (app shell + game modules),
+// except the game catalogue (js/data.js) which is network-first so new games always appear.
+// Bump V on every release so returning visitors fetch fresh files.
+const V = 'gv-v3';
 const CORE = [
   './', './index.html', './style.css', './manifest.json',
   './js/main.js', './js/utils.js', './js/profile.js', './js/theme.js',
   './js/api.js', './js/data.js', './js/quests.js',
   './js/games/snake.js', './js/games/memory.js', './js/games/tictac.js',
   './js/games/blaster.js', './js/games/runner.js', './js/games/simon.js',
+  './js/games/breakout.js', './js/games/merge.js',
 ];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -20,6 +23,17 @@ self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
   if(u.origin !== location.origin) return;
   if(u.pathname.startsWith('/api/')) return; // never cache API
+  if(u.pathname.endsWith('/sw.js') || u.pathname.endsWith('/js/data.js')){
+    // game catalogue: network-first so newly added games always show up
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(V).then(cc => cc.put(e.request, copy));
+        return r;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
       const copy = r.clone();

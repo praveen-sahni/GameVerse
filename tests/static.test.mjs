@@ -93,6 +93,25 @@ describe('split hosting', () => {
   });
 });
 
+describe('update delivery', () => {
+  it('SW version matches the app bundle (stale clients get prompted)', () => {
+    const sw = read('sw.js').match(/const V = '([^']+)'/);
+    const app = read('js/main.js').match(/APP_SW_VERSION = '([^']+)'/);
+    assert.ok(sw && app, 'version constants exist');
+    assert.equal(sw[1], app[1]);
+  });
+  it('catalogue + worker itself bypass the cache', () => {
+    const sw = read('sw.js');
+    assert.ok(sw.includes('/js/data.js') && sw.includes('/sw.js'));
+    assert.ok(read('js/main.js').includes('checkAppVersion'));
+  });
+  it('all games are precached', () => {
+    const sw = read('sw.js');
+    for(const f of ['snake','memory','tictac','blaster','runner','simon','breakout','merge'])
+      assert.ok(sw.includes(`js/games/${f}.js`), f);
+  });
+});
+
 describe('backend hygiene', () => {
   it('server no longer read/writes database.json per request', () => {
     const src = read('server.js');

@@ -141,9 +141,19 @@ describeE2E('browser E2E', () => {
   });
 
   it('opens every game behind its Start gate, then starts it', async () => {
+    async function clickPlay(id){
+      try{
+        await dbg.evaluate((gid) => { document.querySelector(`[data-play="${gid}"]`).click(); return true; }, id);
+      }catch{
+        // CDP evaluate can die mid-navigation-commit; wait for a settled DOM and retry once
+        await new Promise(r => setTimeout(r, 1500));
+        await gotoHome();
+        await dbg.evaluate((gid) => { document.querySelector(`[data-play="${gid}"]`).click(); return true; }, id);
+      }
+    }
     for(const id of ['snake', 'memory', 'tictac', 'blaster', 'runner', 'simon', 'breakout', 'merge']){
       await gotoHome();
-      await dbg.evaluate((gid) => { document.querySelector(`[data-play="${gid}"]`).click(); return true; }, id);
+      await clickPlay(id);
       // modal open?
       await dbg.evaluate(() => new Promise((resolve, reject) => {
         const t0 = Date.now();

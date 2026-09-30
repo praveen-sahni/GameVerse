@@ -646,3 +646,23 @@ setInterval(apiHeartbeat, 30000);
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') apiHeartbeat(); });
 setTimeout(apiHeartbeat, 2000);
 window.__gvBooted = true; // boot watchdog in index.html watches this flag
+const APP_SW_VERSION = 'gv-v3'; // must match const V in sw.js (tests enforce this)
+function checkAppVersion(){
+  // If the server has a newer service worker than this running bundle,
+  // invite (don't force) a refresh so new games/updates actually appear.
+  fetch('sw.js', {cache:'no-store'}).then(r => {
+    if(!r.ok) throw 0;
+    return r.text();
+  }).then(t => {
+    const m = t.match(/const V = '([^']+)'/);
+    if(!m || m[1] === APP_SW_VERSION) return;
+    const box = document.getElementById('toast');
+    if(!box) return;
+    box.textContent = '↻ New version available — tap here to update';
+    box.classList.remove('hidden');
+    box.onclick = () => location.reload();
+    clearTimeout(checkAppVersion._t);
+    checkAppVersion._t = setTimeout(() => { box.classList.add('hidden'); box.onclick = null; }, 9000);
+  }).catch(() => {});
+}
+setTimeout(checkAppVersion, 4000);
