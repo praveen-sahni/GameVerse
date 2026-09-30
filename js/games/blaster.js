@@ -325,10 +325,7 @@ export function mountBlaster(env){
   const countEl = document.getElementById('blCount');
   const steps = ['3', '2', '1', 'GO!'];
   let ci = 0, cdInt = null, countdownDone = false;
-  // Start button: click, or Enter/Space for keyboard players
-  function pressStart(){
-    document.getElementById('blasterStartBtn').click();
-  }
+  // Start button: click/tap, or Enter/Space for keyboard players
   function startKey(e){
     if((e.key === 'Enter' || e.key === ' ') && !countdownDone){
       e.preventDefault();
@@ -340,6 +337,7 @@ export function mountBlaster(env){
     if(countdownDone) return;
     countdownDone = true;
     document.getElementById('blasterStart').classList.add('hidden');
+    setPaused(false); // clear any pre-start pause so the round actually runs
     countEl.classList.remove('hidden');
     countEl.textContent = steps[0];
     env.beep(500, 0.1, 'sine', 0.1);
