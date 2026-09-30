@@ -34,7 +34,8 @@ GameVerse/
 ├── database.json       # legacy JSON (migrated once, then unused)
 ├── backups/            # nightly VACUUM INTO snapshots (keeps 14)
 ├── admin.html          # dashboard + CSV export + backup button
-├── tests/smoke.test.mjs# node:test suite (npm test)
+├── tests/smoke.test.mjs   # unit + HTTP + static checks
+├── tests/e2e.test.mjs     # headless-Chrome E2E over raw CDP (zero deps)
 └── .gitignore
 ```
 
@@ -60,7 +61,7 @@ GameVerse/
 
 ## Tests
 ```bash
-npm test            # unit + HTTP + static checks (28 tests)
+npm test            # unit + HTTP + static + browser E2E (34 tests)
 npm run verify:backup  # prove the newest snapshot restores
 ```
 

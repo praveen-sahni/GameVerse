@@ -15,3 +15,22 @@ export function loadProfile(){
 export function saveProfile(p){ store.set('gv_profile', JSON.stringify(p)); }
 export function saveStats(s){ store.set('gv_stats', JSON.stringify(s)); }
 export function levelFromXp(xp){ return Math.floor(xp/300)+1; }
+// Rivals: a plain name list (local). Leaderboards filter server users by it.
+export function getRivals(){
+  try{
+    const v = JSON.parse(store.get('gv_rivals') || '[]');
+    return Array.isArray(v) ? v.filter(n => typeof n === 'string').slice(0, 20) : [];
+  }catch{ return []; }
+}
+export function addRival(name){
+  const clean = String(name || '').trim().slice(0, 20);
+  if(!clean) return false;
+  const list = getRivals();
+  if(list.some(n => n.toLowerCase() === clean.toLowerCase())) return false;
+  list.push(clean);
+  store.set('gv_rivals', JSON.stringify(list));
+  return true;
+}
+export function removeRival(name){
+  store.set('gv_rivals', JSON.stringify(getRivals().filter(n => n.toLowerCase() !== String(name).toLowerCase())));
+}

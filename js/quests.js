@@ -1,7 +1,7 @@
 // quests.js — streaks, rotating daily/weekly quests, challenge links.
 // Pure helpers are exported for unit tests; initQuests(deps) wires DOM + side effects.
 import {toast, confettiBurst, store, sess} from './utils.js';
-import {loadProfile, saveStats} from './profile.js';
+import {loadProfile, saveStats, addRival} from './profile.js';
 
 // Local wallet cache (server is source of truth; main.js refreshes via /api/users)
 export function getItems(){
@@ -58,7 +58,15 @@ export function parseChallenge(search){
   }catch{ return null; }
 }
 
-// deps: {renderProfile, apiSyncStats, openGame, games}
+// Daily-run state: which game (if any) the next/ongoing modal session plays
+// in seeded daily-challenge mode. Cleared when the game modal closes.
+let dailyRun = null;
+export function setDailyRun(id){ dailyRun = id; }
+export function getDailyRun(){ return dailyRun; }
+export function clearDailyRun(){ dailyRun = null; }
+export function dailySeedFor(id){ return dayKey() + ':' + id; }
+
+// deps: {renderProfile, apiSyncStats, openGame, openProfile, games}
 export function initQuests(deps){
   const {renderProfile, apiSyncStats, openGame, openProfile, games} = deps;
 
@@ -121,11 +129,18 @@ export function initQuests(deps){
       <div class="daily-progress"><div style="width:${pct}%"></div></div>
       ${onboardingChips()}
       ${all.map(q => { const d = q.check(cur); return `<div class="daily-chip ${d ? 'active' : ''}" title="+${q.xp} XP">${d ? '✅' : '○'} ${q.label} <b>+${q.xp}</b></div>`; }).join('')}
+      <button class="daily-chip active" data-daily="snake" style="cursor:pointer" title="Same layout for everyone today">🎯 Snake daily</button>
+      <button class="daily-chip active" data-daily="memory" style="cursor:pointer" title="Same shuffle for everyone today">🎯 Memory daily</button>
+      <button class="daily-chip active" data-daily="simon" style="cursor:pointer" title="Same sequence for everyone today">🎯 Simon daily</button>
       ${historyChips()}
       <div class="daily-chip">💡 Tip: quests rotate daily • weekly = all 6 games</div>
     `;
     strip.querySelector('[data-onboard="profile"]')?.addEventListener('click', () => openProfile());
     strip.querySelector('[data-onboard="play"]')?.addEventListener('click', () => document.getElementById('games')?.scrollIntoView({behavior:'smooth'}));
+    strip.querySelectorAll('[data-daily]').forEach(b => b.addEventListener('click', () => {
+      setDailyRun(b.dataset.daily);
+      openGame(b.dataset.daily);
+    }));
   }
 
   function showChallengeBanner(ch){
@@ -146,7 +161,10 @@ export function initQuests(deps){
     bar.appendChild(safe);
     const accept = document.createElement('button');
     accept.className = 'btn-neon'; accept.style.padding = '8px 14px'; accept.textContent = 'Accept Challenge →';
-    accept.addEventListener('click', () => openGame(ch.game));
+    accept.addEventListener('click', () => {
+      if(addRival(ch.name)) toast(`👥 ${ch.name} added to your rivals!`);
+      openGame(ch.game);
+    });
     const dismiss = document.createElement('button');
     dismiss.className = 'btn-mini'; dismiss.textContent = 'Dismiss';
     dismiss.addEventListener('click', () => { bar.remove(); history.replaceState({}, '', location.pathname); sess.del('gv_ghost'); });

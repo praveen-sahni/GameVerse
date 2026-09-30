@@ -5,6 +5,7 @@ export function mountSnake(env){
   env.restart(env.body);
   const canvas = document.getElementById('snakeCanvas'), ctx = canvas.getContext('2d');
   const N = 20, SZ = 21;
+  const R = env.daily ? env.daily.rng : Math.random; // daily runs: same food for everyone
   const myRun = {dead:false};
   let rafId = 0;
   let snake = [{x:9,y:9},{x:8,y:9},{x:7,y:9}], dir = {x:1,y:0}, nextDir = {x:1,y:0};
@@ -19,7 +20,7 @@ export function mountSnake(env){
     // scattered obstacles, kept clear of the snake plus current foods
     let tries = 0;
     while(blocks.length < 8 + level * 2 && tries++ < 300){
-      const p = {x:2 + Math.floor(Math.random() * (N - 4)), y:2 + Math.floor(Math.random() * (N - 4))};
+      const p = {x:2 + Math.floor(R() * (N - 4)), y:2 + Math.floor(R() * (N - 4))};
       if(snake.some(s => Math.abs(s.x - p.x) + Math.abs(s.y - p.y) < 4)) continue;
       if(blocks.some(b => b.x === p.x && b.y === p.y)) continue;
       if(p.x === food.x && p.y === food.y) continue;
@@ -38,7 +39,7 @@ export function mountSnake(env){
   }
   function placeFood(){
     let p, guard = 0;
-    do{ p = {x:Math.floor(Math.random() * N), y:Math.floor(Math.random() * N)}; guard++; }
+    do{ p = {x:Math.floor(R() * N), y:Math.floor(R() * N)}; guard++; }
     while((snake.some(s => s.x === p.x && s.y === p.y) || blocked(p) || (gold && p.x === gold.x && p.y === gold.y)) && guard < 500);
     food = p;
   }
@@ -147,7 +148,7 @@ export function mountSnake(env){
       placeFood();
       if(eats % 5 === 0 && !gold){
         let gp, guard = 0;
-        do{ gp = {x:Math.floor(Math.random() * N), y:Math.floor(Math.random() * N)}; guard++; }
+        do{ gp = {x:Math.floor(R() * N), y:Math.floor(R() * N)}; guard++; }
         while((snake.some(s => s.x === gp.x && s.y === gp.y) || blocked(gp) || (gp.x === food.x && gp.y === food.y)) && guard < 300);
         gold = gp; goldTimer = 140; env.beep(1100, 0.15, 'sine', 0.12);
       }

@@ -58,6 +58,24 @@ export async function fetchGameLB(gameId){
   return r.json();
 }
 
+export async function apiDailyScore(gameId, score){
+  const id = getUserId(); if(!id) return null;
+  try{
+    const r = await fetch(apiUrl('/api/daily/score'), {method:'POST',
+      headers:{'Content-Type':'application/json', 'x-gv-token': getToken()},
+      body: JSON.stringify({userId: Number(id), game: gameId, score})});
+    if(!r.ok) return null;
+    return r.json();
+  }catch{ return null; }
+}
+
+export async function fetchDailyLB(gameId, day){
+  const q = day ? '?day=' + encodeURIComponent(day) : '';
+  const r = await fetch(apiUrl('/api/daily/' + encodeURIComponent(gameId) + q));
+  if(!r.ok) throw new Error('daily leaderboard failed');
+  return r.json();
+}
+
 export async function shopBuy(item){
   const id = getUserId(); if(!id) throw new Error('no user');
   const r = await fetch(apiUrl('/api/shop/buy'), {method:'POST',

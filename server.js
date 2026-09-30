@@ -79,8 +79,19 @@ CREATE TABLE IF NOT EXISTS activity (
   xp_earned INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS daily_scores (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  username TEXT NOT NULL,
+  avatar TEXT NOT NULL DEFAULT '⚡',
+  game TEXT NOT NULL,
+  day TEXT NOT NULL,
+  score INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id, game, day)
+);
 CREATE INDEX IF NOT EXISTS idx_users_xp ON users(xp DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_game_day ON daily_scores(game, day, score DESC);
 `);
 
 function nowISO(){ return new Date().toISOString(); }
@@ -333,6 +344,35 @@ app.get('/api/leaderboard/:game', (req, res) => {
   }
   list.sort((a, b) => b.score - a.score);
   res.json(list.slice(0, 10));
+});
+// Daily challenge scores — best score per user per game per day (UTC)
+function todayDay(){ return new Date().toISOString().slice(0, 10); }
+app.post('/api/daily/score', (req, res) => {
+  const {userId, game, score} = req.body;
+  const token = req.headers['x-gv-token'];
+  if(!userId || !game) return res.status(400).json({error:'userId + game required'});
+  if(!MAX_SCORE[game]) return res.status(400).json({error:'Unknown game'});
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
+  if(!u) return res.status(404).json({error:'User not found'});
+  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  let s = Math.floor(Number(score) || 0);
+  if(s < 0) s = 0;
+  if(s > MAX_SCORE[game]) s = MAX_SCORE[game]; // same caps as anti-cheat
+  const day = todayDay();
+  const prev = db.prepare('SELECT score FROM daily_scores WHERE user_id = ? AND game = ? AND day = ?').get(u.id, game, day);
+  if(!prev || s > prev.score){
+    db.prepare(`INSERT INTO daily_scores (user_id,username,avatar,game,day,score,created_at)
+      VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id,game,day) DO UPDATE SET score=excluded.score, created_at=excluded.created_at, username=excluded.username, avatar=excluded.avatar`)
+      .run(u.id, u.username, u.avatar, game, day, s, nowISO());
+  }
+  res.json({ok:true, score: Math.max(s, prev?.score || 0), improved: !prev || s > prev.score});
+});
+app.get('/api/daily/:game', (req, res) => {
+  const game = String(req.params.game || '');
+  if(!MAX_SCORE[game]) return res.status(400).json({error:'Unknown game'});
+  const day = typeof req.query.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.day) ? req.query.day : todayDay();
+  const rows = db.prepare('SELECT username,avatar,score FROM daily_scores WHERE game = ? AND day = ? ORDER BY score DESC LIMIT 10').all(game, day);
+  res.json({day, rows});
 });
 // Shop — spend coins on freezes / avatar unlocks
 export const SHOP = {

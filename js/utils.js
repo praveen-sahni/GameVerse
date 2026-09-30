@@ -1,5 +1,20 @@
-// utils.js — sound state, audio blips, toast, confetti, hit feedback.
+// utils.js — sound state, audio blips, toast, confetti, hit feedback, seeded RNG.
 // No imports: every other module may depend on this one.
+export function hashSeed(str){
+  let h = 2166136261;
+  for(let i = 0; i < String(str).length; i++){ h ^= String(str).charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// Deterministic PRNG (mulberry32). Same seed → same sequence, every device.
+export function makeRng(seed){
+  let a = (typeof seed === 'number' ? seed : hashSeed(seed)) >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 export let soundOn = true;
 try{ soundOn = localStorage.getItem('gv_sound') !== 'off'; }catch{}
 // (lazy try/catch keeps this module importable in Node for unit tests)

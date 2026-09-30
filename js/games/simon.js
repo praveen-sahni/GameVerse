@@ -107,7 +107,7 @@ export function mountSimon(env){
   }
   function next(){
     if(dead) return;
-    seq.push(Math.floor(Math.random() * 4));
+    seq.push(Math.floor((env.daily ? env.daily.rng : Math.random)() * 4));
     document.getElementById('simonLevel').textContent = level;
     renderDots(); playSeq();
   }

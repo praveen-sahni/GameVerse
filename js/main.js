@@ -2,11 +2,12 @@
 // Game implementations live in js/games/*. Inter-module flow is one-way:
 // games/* → (env) → main → {utils, profile, theme, api, data, quests}.
 import {toast, confettiBurst, beep, triggerShake, updateSoundBtn, setSound, soundOn, store, sess} from './utils.js';
-import {avatars, loadProfile, saveProfile, saveStats, levelFromXp, defaultStats} from './profile.js';
+import {avatars, loadProfile, saveProfile, saveStats, levelFromXp, defaultStats, getRivals, addRival, removeRival} from './profile.js';
 import {initTheme} from './theme.js';
-import {apiAuth, apiHeartbeat, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, shopBuy, getUserId} from './api.js';
+import {apiAuth, apiHeartbeat, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, fetchDailyLB, apiDailyScore, shopBuy, getUserId} from './api.js';
 import {games, thumbSVG} from './data.js';
-import {initQuests, dayKey, getItems, setItems} from './quests.js';
+import {initQuests, dayKey, getItems, setItems, getDailyRun, clearDailyRun, dailySeedFor} from './quests.js';
+import {makeRng} from './utils.js';
 import {mountSnake} from './games/snake.js';
 import {mountMemory} from './games/memory.js';
 import {mountTicTac} from './games/tictac.js';
@@ -94,6 +95,43 @@ function lbRow(rank, av, name, sub, score, scoreSuffix){
 async function renderLB(){
   const c = document.getElementById('lbList');
   c.innerHTML = '';
+  if(lbGame === 'rivals'){
+    // rivals board: followed names + you, ranked by XP (all data local-filtered)
+    const names = getRivals();
+    const {profile, stats} = loadProfile();
+    let list = [];
+    try{
+      const users = await fetchUsers();
+      list = users
+        .filter(u => names.some(n => n.toLowerCase() === u.username.toLowerCase()))
+        .map(u => ({name:u.username, av:u.avatar, xp:u.xp}));
+    }catch{}
+    if(profile){
+      list = list.filter(u => u.name.toLowerCase() !== profile.name.toLowerCase());
+      list.push({name:profile.name, av:profile.avatar, xp:stats.xp, me:true});
+    }
+    list.sort((a, b) => b.xp - a.xp);
+    if(!names.length && !profile){
+      c.innerHTML = '<div class="act"><span>No rivals yet — accept a challenge or tap ＋ Rival! 👥</span></div>';
+      return;
+    }
+    if(!list.length){
+      c.innerHTML = '<div class="act"><span>None of your rivals have played yet. Share a challenge link! 🔗</span></div>';
+      return;
+    }
+    list.slice(0, 10).forEach((u, i) => {
+      const row = lbRow(i, u.av, u.name + (u.me ? ' (You)' : ''), 'Level ' + levelFromXp(u.xp), Number(u.xp) || 0, 'XP');
+      if(!u.me){
+        const x = document.createElement('button');
+        x.className = 'btn-mini'; x.textContent = '✕'; x.title = 'Unfollow ' + u.name;
+        x.style.marginLeft = 'auto';
+        x.addEventListener('click', (e) => { e.stopPropagation(); removeRival(u.name); renderLB(); toast(`Unfollowed ${u.name}`); });
+        row.appendChild(x);
+      }
+      c.appendChild(row);
+    });
+    return;
+  }
   if(lbGame !== 'all'){
     // per-game board: best score per player
     let rows = [];
@@ -273,7 +311,10 @@ function mountGame(id){
   gameBody.innerHTML = '';
   document.getElementById('gameControls').innerHTML = '';
   document.getElementById('gameExtra').style.display = 'flex';
-  (MOUNTS[id] || mountSnake)(gameEnv());
+  const env = gameEnv();
+  // daily-challenge mode: seeded RNG shared by the whole run (survives restarts)
+  env.daily = (getDailyRun() === id) ? {seed: dailySeedFor(id), rng: makeRng(dailySeedFor(id))} : null;
+  (MOUNTS[id] || mountSnake)(env);
 }
 
 function openGame(id){
@@ -290,7 +331,9 @@ function openGame(id){
   mountGame(g.id);
   const extra = document.getElementById('gameExtra');
   extra.style.display = 'flex';
+  const isDaily = getDailyRun() === g.id;
   let lbHtml = `<span>🏆 Your Best: ${stats.best[g.id] || 0}</span>`;
+  if(isDaily) lbHtml = `<span>📅 DAILY — same layout for everyone today</span>` + lbHtml;
   // per-game leaderboard from the server (async upgrade when it arrives)
   fetchGameLB(g.id).then(rows => {
     if(!rows.length || currentGame?.id !== g.id) return;
@@ -299,6 +342,15 @@ function openGame(id){
     const s = document.createElement('span');
     s.textContent = '🌍 ' + rows.slice(0, 3).map(u => `${u.avatar} ${u.username} ${u.score}`).join(' • ');
     box.prepend(s);
+  }).catch(() => {});
+  // today's daily board next to it
+  fetchDailyLB(g.id).then(d => {
+    if(currentGame?.id !== g.id) return;
+    const box = document.getElementById('gameExtra')?.querySelector('.mini-lb');
+    if(!box || !d.rows.length) return;
+    const s = document.createElement('span');
+    s.textContent = '📅 Today: ' + d.rows.slice(0, 3).map(u => `${u.avatar} ${u.username} ${u.score}`).join(' • ');
+    box.appendChild(s);
   }).catch(() => {});
   extra.innerHTML = `<div class="mini-lb">${lbHtml}<span>🔥 Streak ${store.get('gv_streak') || 1}</span><span>🔊 ${soundOn ? 'ON' : 'OFF'}</span></div><button class="btn-mini" id="extraPower">⚡ Power-up (1/game)</button><button class="btn-mini" id="extraTut">❓ Tutorial</button>`;
   document.getElementById('extraPower')?.addEventListener('click', () => {
@@ -346,6 +398,7 @@ function showTutorial(id){
 }
 
 function closeGame(){
+  clearDailyRun();
   if(cleanup){ try{ cleanup(); }catch{} cleanup = null; }
   releaseTrap(gameModal);
   gameModal.classList.add('hidden');
@@ -387,6 +440,8 @@ function awardXp(base){
     }
   }catch{}
   apiSyncStats({action:`Scored ${currentScore} in ${currentGame.title}`, score:currentScore, xp_earned:xp}, currentGame.id);
+  // daily-challenge runs also post to today's board (best per day wins)
+  if(getDailyRun() === currentGame.id && currentScore > 0) apiDailyScore(currentGame.id, currentScore);
   if(questsApi) setTimeout(() => questsApi.renderDaily(Number(store.get('gv_streak') || 1)), 400);
 }
 
@@ -524,6 +579,16 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 document.getElementById('lbGame')?.addEventListener('change', (e) => {
   lbGame = e.target.value;
   renderLB();
+});
+document.getElementById('addRivalBtn')?.addEventListener('click', () => {
+  const name = (prompt('Rival player name (exact):') || '').trim();
+  if(!name) return;
+  if(addRival(name)){
+    toast(`👥 Following ${name}!`);
+    lbGame = 'rivals';
+    document.getElementById('lbGame').value = 'rivals';
+    renderLB();
+  } else toast('Already following (or invalid name).');
 });
 document.getElementById('closeGame').addEventListener('click', closeGame);
 document.getElementById('gameShare')?.addEventListener('click', () => {

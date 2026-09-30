@@ -8,9 +8,15 @@ export function mountMemory(env){
   const diffSel = document.getElementById('memDiff');
   document.getElementById('memBest').textContent = env.loadProfile().stats.best.memory || 0;
 
+  const R = env.daily ? env.daily.rng : Math.random; // daily runs: same shuffle for everyone
   function build(){
     const emojis = allEmojis.slice(0, pairCount);
-    return [...emojis, ...emojis].sort(() => Math.random() - 0.5);
+    const deck = [...emojis, ...emojis];
+    for(let i = deck.length - 1; i > 0; i--){
+      const j = Math.floor(R() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
   }
   const cards = build();
   const flipped = [], matched = new Set();
