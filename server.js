@@ -424,6 +424,19 @@ app.post('/api/logout', (req, res) => {
   if(userId) db.prepare(`UPDATE sessions SET logout_at = ? WHERE user_id = ? AND logout_at IS NULL`).run(nowISO(), Number(userId));
   res.json({ok:true});
 });
+// Admin: permanently delete a user + all their rows (sessions, activity, daily scores)
+app.delete('/api/admin/users/:id', (req, res) => {
+  if(needAdmin(req, res)) return;
+  const id = Number(req.params.id);
+  if(!Number.isFinite(id)) return res.status(400).json({error:'Bad id'});
+  const u = db.prepare('SELECT username FROM users WHERE id = ?').get(id);
+  if(!u) return res.status(404).json({error:'User not found'});
+  db.prepare('DELETE FROM daily_scores WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM activity WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  res.json({ok:true, deleted: u.username});
+});
 
 // ---------- Backups ----------
 function backupDb(){
