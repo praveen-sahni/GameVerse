@@ -164,9 +164,9 @@ export function mountBlaster(env){
       x: spot.x, y: spot.y, size, life, born: 0, remaining: 0,
       kill: null, shrink: null, gone: false, type, points, vx: 0, vy: 0, el: null,
     };
-    // drifting targets from level 2 — faster each level (bombs stay still)
+    // drifting targets from level 2 — gentle pace, slightly faster each level (bombs stay still)
     if(level >= 2 && type !== 'bomb'){
-      const sp = 0.5 + (level - 2) * 0.28;
+      const sp = 0.22 + (level - 2) * 0.1;
       const a = Math.random() * Math.PI * 2;
       o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp;
     }
@@ -325,6 +325,17 @@ export function mountBlaster(env){
   const countEl = document.getElementById('blCount');
   const steps = ['3', '2', '1', 'GO!'];
   let ci = 0, cdInt = null, countdownDone = false;
+  // Start button: click, or Enter/Space for keyboard players
+  function pressStart(){
+    document.getElementById('blasterStartBtn').click();
+  }
+  function startKey(e){
+    if((e.key === 'Enter' || e.key === ' ') && !countdownDone){
+      e.preventDefault();
+      pressStart();
+    }
+  }
+  window.addEventListener('keydown', startKey);
   document.getElementById('blasterStartBtn').addEventListener('click', () => {
     if(countdownDone) return;
     countdownDone = true;
@@ -352,5 +363,6 @@ export function mountBlaster(env){
     alive = false;
     clearInterval(timer); clearInterval(spawnTimer); clearInterval(decayTimer); clearInterval(cdInt); clearTimeout(slowT);
     document.removeEventListener('visibilitychange', onVis);
+    window.removeEventListener('keydown', startKey);
   });
 }
