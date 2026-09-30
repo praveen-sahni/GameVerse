@@ -87,6 +87,12 @@ describeE2E('browser E2E', () => {
   const tmpDb = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gv-e2e-')), 'test.db');
 
   before(async () => {
+    // clear stale debugger-Chrome instances from earlier runs (same fixed port)
+    try{
+      const {exec} = await import('node:child_process');
+      await new Promise(r => exec('pkill -f "remote-debugging-port=9333"', () => r()));
+      await new Promise(r => setTimeout(r, 1000));
+    }catch{}
     child = spawn(process.execPath, ['server.js'], {
       cwd: new URL('..', import.meta.url).pathname,
       env: {...process.env, GAMEVERSE_NO_LISTEN: '', PORT: String(PORT),
@@ -120,20 +126,22 @@ describeE2E('browser E2E', () => {
         window.__gvBooted === true,
         document.querySelectorAll('.game-card').length,
       ]);
-      if(booted && cards === 6) return;
+      if(booted && cards === 8) return;
       if(Date.now() - t0 > 15000) throw new Error(`boot failed (booted=${booted}, cards=${cards})`);
       await new Promise(r => setTimeout(r, 400));
     }
   }
   const errCheck = () => dbg.evaluate(() => (window.__gvE2EErrors || []).slice(0, 3));
 
-  it('boots with no JS errors and renders 6 game cards', async () => {
+  it('boots with no JS errors and renders 8 game cards', async () => {
     await gotoHome();
+    const cards = await dbg.evaluate(() => document.querySelectorAll('.game-card').length);
+    assert.equal(cards, 8);
     assert.deepEqual(await errCheck(), []);
   });
 
   it('opens every game behind its Start gate, then starts it', async () => {
-    for(const id of ['snake', 'memory', 'tictac', 'blaster', 'runner', 'simon']){
+    for(const id of ['snake', 'memory', 'tictac', 'blaster', 'runner', 'simon', 'breakout', 'merge']){
       await gotoHome();
       await dbg.evaluate((gid) => { document.querySelector(`[data-play="${gid}"]`).click(); return true; }, id);
       // modal open?

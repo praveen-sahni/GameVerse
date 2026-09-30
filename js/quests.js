@@ -20,10 +20,12 @@ export const QUEST_POOL = [
   {id:'q-run250', game:'runner', label:'🏃 Score 250 in Runner', xp:80, check:s => (s.best.runner || 0) >= 250},
   {id:'q-simon5', game:'simon', label:'✨ Reach Simon level 5', xp:50, check:s => (s.best.simon || 0) >= 112},
   {id:'q-ttt-win', game:'tictac', label:'⭕ Beat TicTacToe AI', xp:40, check:s => (s.best.tictac || 0) >= 100},
+  {id:'q-brk200', game:'breakout', label:'🧱 Score 200 in Breakout', xp:50, check:s => (s.best.breakout || 0) >= 200},
+  {id:'q-merge1k', game:'merge', label:'🔢 Score 1000 in 2048', xp:50, check:s => (s.best.merge || 0) >= 1000},
   {id:'q-play3', game:null, label:'🎮 Play 3 games today', xp:30, check:() => Number(sess.get('gv_playedToday') || 0) >= 3},
   {id:'q-xp200', game:null, label:'⚡ Earn 200 XP total', xp:30, check:s => s.xp >= 200},
 ];
-export const WEEKLY_QUEST = {id:'q-weekly', game:null, label:'🏆 Weekly: play all 6 games', xp:150, check:s => Object.keys(s.best || {}).length >= 6};
+export const WEEKLY_QUEST = {id:'q-weekly', game:null, label:'🏆 Weekly: play all 8 games', xp:150, check:s => Object.keys(s.best || {}).length >= 8};
 
 export function hashStr(str){
   let h = 2166136261;

@@ -20,14 +20,14 @@ describe('module split', () => {
     assert.ok(shim.length < 1000);
   });
   it('every game module exports its mount function', () => {
-    for(const [f, fn] of [['snake','mountSnake'],['memory','mountMemory'],['tictac','mountTicTac'],['blaster','mountBlaster'],['runner','mountRunner'],['simon','mountSimon']]){
+    for(const [f, fn] of [['snake','mountSnake'],['memory','mountMemory'],['tictac','mountTicTac'],['blaster','mountBlaster'],['runner','mountRunner'],['simon','mountSimon'],['breakout','mountBreakout'],['merge','mountMerge']]){
       const src = read(`js/games/${f}.js`);
       assert.ok(src.includes(`export function ${fn}`), f);
       assert.ok(!src.includes('function openGame'), f + ' must not own the shell');
     }
   });
   it('game modules only talk to the app through env (no cross-imports)', () => {
-    for(const f of ['snake','memory','tictac','blaster','runner','simon']){
+    for(const f of ['snake','memory','tictac','blaster','runner','simon','breakout','merge']){
       const src = read(`js/games/${f}.js`);
       assert.ok(!src.match(/^import /m), f + ' has imports');
     }

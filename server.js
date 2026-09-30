@@ -159,7 +159,7 @@ function needAdmin(req, res){
 }
 
 // ---------- Anti-cheat (pure, unit-tested) ----------
-export const MAX_SCORE = {snake:1500, memory:600, blaster:2500, runner:2500, simon:600, tictac:200};
+export const MAX_SCORE = {snake:1500, memory:600, blaster:2500, runner:2500, simon:600, tictac:200, breakout:5000, merge:200000};
 export const MAX_XP_PER_HIT = 400;
 export const MAX_COINS_PER_HIT = 100;
 export function applyStatsUpdate(u, body){

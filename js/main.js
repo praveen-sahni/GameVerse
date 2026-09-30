@@ -8,6 +8,8 @@ import {apiAuth, apiHeartbeat, apiSyncStats, fetchUsers, fetchSummary, fetchGame
 import {games, thumbSVG} from './data.js';
 import {initQuests, dayKey, getItems, setItems, getDailyRun, clearDailyRun, dailySeedFor} from './quests.js';
 import {makeRng} from './utils.js';
+import {mountBreakout} from './games/breakout.js';
+import {mountMerge} from './games/merge.js';
 import {mountSnake} from './games/snake.js';
 import {mountMemory} from './games/memory.js';
 import {mountTicTac} from './games/tictac.js';
@@ -15,7 +17,7 @@ import {mountBlaster} from './games/blaster.js';
 import {mountRunner} from './games/runner.js';
 import {mountSimon} from './games/simon.js';
 
-const MOUNTS = {snake: mountSnake, memory: mountMemory, tictac: mountTicTac, blaster: mountBlaster, runner: mountRunner, simon: mountSimon};
+const MOUNTS = {snake: mountSnake, memory: mountMemory, tictac: mountTicTac, blaster: mountBlaster, runner: mountRunner, simon: mountSimon, breakout: mountBreakout, merge: mountMerge};
 
 let selectedAvatar = avatars[0];
 let chosenGenre = 'Arcade';
@@ -392,7 +394,9 @@ function showTutorial(id){
     tictac:'You X vs AI O. Hard = unbeatable minimax. Win line glows. Hint highlights best move.',
     blaster:'Gold ★ +22, Bomb −12, Freeze ❄ +2s. Combo builds. Slow-Mo power-up 5s.',
     runner:'Space/↑ double-jump, R restart, coins +5, birds fly high.',
-    simon:'Watch flash + tone, repeat. Strict resets, speed ramps every 4 lvls, Repeat button.'
+    simon:'Watch flash + tone, repeat. Strict resets, speed ramps every 4 lvls, Repeat button.',
+    breakout:'Move: mouse / touch / arrows. Angle shots off paddle edges. Gold bricks +30.',
+    merge:'Arrows / WASD / swipe / buttons. Merge to 2048. Undo power available.'
   };
   toast(`💡 ${tips[id] || 'Have fun!'}`);
 }
@@ -635,6 +639,7 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 renderAvatarGrid(); renderGenre();
+document.getElementById('heroTotalGames').textContent = games.length;
 renderProfile(); renderLB(); renderActivity(); renderGames(); refreshWallet();
 setTimeout(() => questsApi.updateStreak(), 600);
 setInterval(apiHeartbeat, 30000);
