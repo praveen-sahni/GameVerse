@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import { DatabaseSync } from 'node:sqlite';
+import webpush from 'web-push';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,6 +92,16 @@ CREATE TABLE IF NOT EXISTS daily_scores (
 );
 CREATE INDEX IF NOT EXISTS idx_users_xp ON users(xp DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity(created_at DESC);
+CREATE TABLE IF NOT EXISTS subscriptions (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id, endpoint)
+);
+CREATE INDEX IF NOT EXISTS idx_users_xp ON users(xp DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_created ON activity(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_daily_game_day ON daily_scores(game, day, score DESC);
 `);
 
@@ -137,6 +148,38 @@ export function verifyPin(pin, stored){
   }catch{ return false; }
 }
 function makeToken(){ return crypto.randomBytes(32).toString('hex'); }
+
+// ---------- Name moderation ----------
+// Token-exact matching avoids Scunthorpe false positives ("classic" is fine;
+// only the standalone token "ass" is blocked).
+let BLOCKED = new Set();
+try{
+  BLOCKED = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'badwords.json'), 'utf8')));
+}catch{}
+const LEET = {'0':'o', '1':'l', '3':'e', '4':'a', '5':'s', '7':'t', '$':'s', '@':'a', '!':'i'};
+export function cleanNameTokens(name){
+  // NOTE: no leet normalization here — isNameBlocked() derives both '1' readings itself.
+  return String(name || '').toLowerCase().split(/[^a-z0-9$@!]+/).filter(Boolean);
+}
+// Safe words that legitimately contain a blocked substring
+// ("classic" has "ass", "therapist" has "rapist", ...). Matched as exact
+// token or prefix so "SniggerFan"-style names still pass.
+const ALLOW = ['classic', 'hello', 'arsenal', 'cocktail', 'peacock', 'therapist', 'snigger', 'scunthorpe', 'shitake'];
+function normLeet(t, one){
+  return [...t].map(ch => (ch === '1' ? one : (LEET[ch] || ch))).join('');
+}
+export function isNameBlocked(name){
+  // '1' reads as L or I ("sh1tty" = "shitty", "b1tch" = "bitch") — test both
+  // readings, applied here (not after normalization, where the '1' is gone).
+  return cleanNameTokens(name).some(t0 => [normLeet(t0, 'l'), normLeet(t0, 'i')].some(t => {
+    if(ALLOW.some(a => t === a || t.startsWith(a))) return false;
+    if(BLOCKED.has(t)) return true;
+    for(const w of BLOCKED){
+      if(w.length >= 4 && t.length > w.length && t.includes(w)) return true;
+    }
+    return false;
+  }));
+}
 
 // ---------- Rate limits ----------
 const rateMap = new Map();
@@ -249,6 +292,7 @@ app.post('/api/auth', rateLimit, (req, res) => {
   if(!username || username.trim().length < 2) return res.status(400).json({error:'Username min 2 chars'});
   if(pin && !/^\d{4}$/.test(String(pin))) return res.status(400).json({error:'PIN must be 4 digits'});
   const clean = username.trim().slice(0, 20);
+  if(isNameBlocked(clean)) return res.status(400).json({error:'That name is not allowed — pick another'});
   const pinStr = String(pin || '0000');
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
   const ua = req.headers['user-agent'] || '';
@@ -403,6 +447,56 @@ app.post('/api/shop/buy', (req, res) => {
   const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(u.id);
   res.json({ok:true, coins: fresh.coins, items: parseItems(fresh.items)});
 });
+// ---------- Web push (VAPID) ----------
+function vapid(){
+  const pub = process.env.VAPID_PUBLIC, priv = process.env.VAPID_PRIVATE;
+  if(!pub || !priv) return null;
+  webpush.setVapidDetails(process.env.VAPID_CONTACT || 'mailto:admin@gameverse.local', pub, priv);
+  return webpush;
+}
+// Send one push; prunes dead (410/404) subscriptions. Exported for the reminder cron.
+export async function sendPush(userId, payload){
+  const lib = vapid();
+  if(!lib) return {sent: 0, pruned: 0, disabled: true};
+  const subs = db.prepare('SELECT endpoint,p256dh,auth FROM subscriptions WHERE user_id = ?').all(Number(userId));
+  let sent = 0, pruned = 0;
+  for(const s of subs){
+    try{
+      await lib.sendNotification({endpoint: s.endpoint, keys: {p256dh: s.p256dh, auth: s.auth}}, JSON.stringify(payload));
+      sent++;
+    }catch(e){
+      if(e.statusCode === 410 || e.statusCode === 404){
+        db.prepare('DELETE FROM subscriptions WHERE user_id = ? AND endpoint = ?').run(Number(userId), s.endpoint);
+        pruned++;
+      }
+    }
+  }
+  return {sent, pruned};
+}
+app.get('/api/push/public-key', (req, res) => {
+  if(!process.env.VAPID_PUBLIC) return res.status(404).json({error:'Push not configured'});
+  res.json({key: process.env.VAPID_PUBLIC});
+});
+app.post('/api/push/subscribe', (req, res) => {
+  const {userId, subscription} = req.body;
+  const token = req.headers['x-gv-token'];
+  if(!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth)
+    return res.status(400).json({error:'userId + subscription with keys required'});
+  if(String(subscription.endpoint).length > 2000) return res.status(400).json({error:'Bad endpoint'});
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
+  if(!u) return res.status(404).json({error:'User not found'});
+  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  db.prepare(`INSERT INTO subscriptions (user_id,endpoint,p256dh,auth,created_at) VALUES (?,?,?,?,?)
+    ON CONFLICT(user_id,endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth, created_at=excluded.created_at`)
+    .run(u.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, nowISO());
+  res.json({ok:true});
+});
+app.post('/api/push/unsubscribe', (req, res) => {
+  const {userId, endpoint} = req.body;
+  if(!userId || !endpoint) return res.status(400).json({error:'userId + endpoint required'});
+  db.prepare('DELETE FROM subscriptions WHERE user_id = ? AND endpoint = ?').run(Number(userId), String(endpoint));
+  res.json({ok:true});
+});
 app.get('/api/activity', (req, res) => {
   const rows = db.prepare('SELECT id,user_id,username,avatar,action,score,xp_earned,created_at FROM activity ORDER BY id DESC LIMIT 100').all();
   res.json(rows);
@@ -423,6 +517,24 @@ app.post('/api/logout', (req, res) => {
   const {userId} = req.body;
   if(userId) db.prepare(`UPDATE sessions SET logout_at = ? WHERE user_id = ? AND logout_at IS NULL`).run(nowISO(), Number(userId));
   res.json({ok:true});
+});
+// Admin: rename a user everywhere (users, sessions, activity, daily scores)
+app.post('/api/admin/users/:id/rename', (req, res) => {
+  if(needAdmin(req, res)) return;
+  const id = Number(req.params.id);
+  const name = String(req.body?.username || '').trim().slice(0, 20);
+  if(!Number.isFinite(id)) return res.status(400).json({error:'Bad id'});
+  if(name.length < 2) return res.status(400).json({error:'Username min 2 chars'});
+  if(isNameBlocked(name)) return res.status(400).json({error:'That name is not allowed'});
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  if(!u) return res.status(404).json({error:'User not found'});
+  const clash = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(name, id);
+  if(clash) return res.status(409).json({error:'Name already taken'});
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(name, id);
+  db.prepare('UPDATE sessions SET username = ? WHERE user_id = ?').run(name, id);
+  db.prepare('UPDATE activity SET username = ? WHERE user_id = ?').run(name, id);
+  db.prepare('UPDATE daily_scores SET username = ? WHERE user_id = ?').run(name, id);
+  res.json({ok:true, username: name});
 });
 // Admin: permanently delete a user + all their rows (sessions, activity, daily scores)
 app.delete('/api/admin/users/:id', (req, res) => {

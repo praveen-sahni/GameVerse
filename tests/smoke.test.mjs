@@ -10,6 +10,11 @@ import {spawn} from 'node:child_process';
 process.env.GAMEVERSE_NO_LISTEN = '1';
 process.env.GAMEVERSE_NO_MIGRATE = '1';
 process.env.GAMEVERSE_NO_BACKUP = '1';
+// temp VAPID keys for the spawned API server (push endpoints)
+import webpushLib from 'web-push';
+const TEST_VAPID = webpushLib.generateVAPIDKeys();
+process.env.VAPID_PUBLIC = TEST_VAPID.publicKey;
+process.env.VAPID_PRIVATE = TEST_VAPID.privateKey;
 const tmpDb = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gv-test-')), 'test.db');
 process.env.GAMEVERSE_DB = tmpDb;
 
@@ -118,6 +123,76 @@ describe('HTTP API', () => {
     r = await fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({username:'SmokeUser', pin:'0000'})});
     assert.equal(r.status, 403);
+  });
+  it('rejects blocked names but allows innocent lookalikes', async () => {
+    const reg = (username) => fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, pin:'1234'})});
+    assert.equal((await reg('dumbfuck')).status, 400);
+    assert.equal((await reg('dumb fucker')).status, 400); // token-exact
+    assert.equal((await reg('SuperFuckingNoob')).status, 400); // hidden in longer token
+    assert.equal((await reg('sh1tty')).status, 400); // leetspeak normalized
+    assert.equal((await reg('Therapist')).status, 200); // allowlisted stem
+    const ok = await reg('ClassicMike');
+    assert.equal(ok.status, 200);
+    const me = await ok.json();
+    assert.equal(me.user.username, 'ClassicMike');
+  });
+  it('name filter: compounds blocked, safe stems pass (unit)', () => {
+    assert.equal(server.isNameBlocked('SniggerFan'), false);
+    assert.equal(server.isNameBlocked('ArsenalFan'), false);
+    assert.equal(server.isNameBlocked('ClassicMike'), false);
+    assert.equal(server.isNameBlocked('dumbfuck'), true);
+    assert.equal(server.isNameBlocked('Fuckface99'), true); // compound, leet-safe
+  });
+  it('admin-renames a user everywhere', async () => {
+    const key = {'x-admin-key':'testkey123'};
+    const users = await (await fetch(BASE + '/api/users')).json();
+    const mike = users.find(u => u.username === 'Therapist');
+    assert.ok(mike);
+    const rename = (id, body) => fetch(BASE + `/api/admin/users/${id}/rename`, {method:'POST',
+      headers:{'Content-Type':'application/json', ...key}, body: JSON.stringify(body)});
+    assert.equal((await rename(mike.id, {username:'x'})).status, 400); // too short
+    assert.equal((await rename(mike.id, {username:'dumbfuck'})).status, 400); // blocked
+    assert.equal((await rename(mike.id, {username:'SmokeUser'})).status, 409); // taken
+    assert.equal((await rename(99999, {username:'Nobody'})).status, 404);
+    assert.equal((await fetch(BASE + `/api/admin/users/${mike.id}/rename`,
+      {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:'CleanRider'})})).status, 401);
+    const good = await (await rename(mike.id, {username:'CleanRider'})).json();
+    assert.equal(good.username, 'CleanRider');
+    const after = await (await fetch(BASE + '/api/users')).json();
+    assert.ok(after.some(u => u.username === 'CleanRider'));
+    assert.ok(!after.some(u => u.username === 'Therapist'));
+    const acts = await (await fetch(BASE + '/api/activity')).json();
+    assert.ok(acts.filter(a => a.user_id === mike.id).every(a => a.username === 'CleanRider'));
+    // can still log in under the new name with the same PIN
+    const back = await fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:'CleanRider', pin:'1234'})});
+    assert.equal(back.status, 200);
+  });
+  it('push public-key + subscribe round-trip (temp VAPID keys)', async () => {
+    const pub = await (await fetch(BASE + '/api/push/public-key')).json();
+    assert.equal(pub.key, TEST_VAPID.publicKey);
+    const sub = {endpoint:'https://push.example/sub-1', keys:{p256dh:'cDE2NTZkaA', auth:'YXV0aA'}};
+    const ok = await fetch(BASE + '/api/push/subscribe', {method:'POST',
+      headers:{'Content-Type':'application/json', 'x-gv-token': token},
+      body: JSON.stringify({userId: uid, subscription: sub})});
+    assert.equal(ok.status, 200);
+    // duplicate subscribe = idempotent update, still 200
+    assert.equal((await fetch(BASE + '/api/push/subscribe', {method:'POST',
+      headers:{'Content-Type':'application/json', 'x-gv-token': token},
+      body: JSON.stringify({userId: uid, subscription: sub})})).status, 200);
+    const un = await fetch(BASE + '/api/push/unsubscribe', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({userId: uid, endpoint: sub.endpoint})});
+    assert.equal(un.status, 200);
+  });
+  it('push subscribe validates input', async () => {
+    const bad = await fetch(BASE + '/api/push/subscribe', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({userId: uid})});
+    assert.equal(bad.status, 400);
+    const bad2 = await fetch(BASE + '/api/push/subscribe', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({userId: 99999, subscription:{endpoint:'x', keys:{p256dh:'y', auth:'z'}}})});
+    assert.equal(bad2.status, 404);
   });
   it('clamps cheat stats over HTTP', async () => {
     const r = await fetch(BASE + '/api/stats', {method:'POST',
