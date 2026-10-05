@@ -86,13 +86,33 @@ export function beep(freq, dur = 0.18, type = 'sine', vol = 0.13){
   }catch{}
 }
 
-export function toast(msg){
+const toastQueue = [];
+let toastShowing = false;
+// Queued toasts: rapid messages stack (max 3) instead of stomping each other.
+// opts: {ms, onClick} — onClick makes the toast tappable (e.g. update prompt).
+export function toast(msg, opts = {}){
+  toastQueue.push({msg, ms: opts.ms || 2400, onClick: opts.onClick || null});
+  while(toastQueue.length > 3) toastQueue.shift();
+  pumpToast();
+}
+function pumpToast(){
+  if(toastShowing) return;
+  const next = toastQueue.shift();
+  if(!next) return;
   const el = document.getElementById('toast');
   if(!el) return;
-  el.textContent = msg;
+  toastShowing = true;
+  el.textContent = next.msg;
+  el.onclick = next.onClick;
+  el.style.cursor = next.onClick ? 'pointer' : '';
   el.classList.remove('hidden');
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.add('hidden'), 2400);
+  clearTimeout(pumpToast._t);
+  pumpToast._t = setTimeout(() => {
+    el.classList.add('hidden');
+    el.onclick = null;
+    toastShowing = false;
+    pumpToast();
+  }, next.ms);
 }
 
 export function confettiBurst(x, y){

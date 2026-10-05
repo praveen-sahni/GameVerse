@@ -1,0 +1,12 @@
+# GameVerse streak reminders — copy both files to /etc/systemd/system/,
+# then: systemctl daemon-reload && systemctl enable --now gameverse-reminders.timer
+# Requires VAPID_PUBLIC/VAPID_PRIVATE (generate: npx web-push generate-vapid-keys)
+[Unit]
+Description=GameVerse streak reminder push
+
+[Service]
+Type=oneshot
+User=gameverse
+WorkingDirectory=/opt/gameverse
+EnvironmentFile=/opt/gameverse/.env
+ExecStart=/usr/bin/node /opt/gameverse/scripts/send-reminders.mjs

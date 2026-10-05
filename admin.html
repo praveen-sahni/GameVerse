@@ -116,10 +116,21 @@ async function render(){
           <td style="max-width:180px;word-break:break-all"><small style="font-family:JetBrains Mono">${esc(Object.entries(u.best||{}).map(([k,v])=>k+':'+v).join(', ')||'—')}</small></td>
           <td><small>${esc(new Date(u.last_seen).toLocaleString())}</small></td>
           <td><span class="badge ${u.isOnline?'online':'offline'}">${u.isOnline?'● Online':'○ Offline'}</span></td>
-          <td><button class="btn" data-del="${u.id}" data-name="${esc(u.username)}" title="Permanently delete ${esc(u.username)}" style="padding:6px 10px;background:rgba(255,60,90,0.16)">🗑</button></td>
+          <td style="white-space:nowrap"><button class="btn" data-rename="${u.id}" data-name="${esc(u.username)}" title="Rename ${esc(u.username)}" style="padding:6px 10px">✏️</button> <button class="btn" data-del="${u.id}" data-name="${esc(u.username)}" title="Permanently delete ${esc(u.username)}" style="padding:6px 10px;background:rgba(255,60,90,0.16)">🗑</button></td>
         </tr>
       `).join('')}
     </tbody></table>`;
+    panel.querySelectorAll('[data-rename]').forEach(b => b.addEventListener('click', async () => {
+      const name = (prompt(`Rename ${b.dataset.name} to:`, b.dataset.name) || '').trim();
+      if(!name || name === b.dataset.name) return;
+      try{
+        const r = await fetch(apiBase() + '/api/admin/users/' + b.dataset.rename + '/rename', {method:'POST',
+          headers:{...adminHeaders(), 'Content-Type':'application/json'}, body: JSON.stringify({username: name})});
+        const j = await r.json().catch(() => ({}));
+        if(!r.ok) throw new Error(j.error || 'Rename failed');
+        render();
+      }catch(e){ alert(e.message); }
+    }));
     panel.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
       if(!confirm(`Permanently delete ${b.dataset.name} and ALL their rows?`)) return;
       try{

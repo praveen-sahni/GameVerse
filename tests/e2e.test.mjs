@@ -203,8 +203,13 @@ describeE2E('browser E2E', () => {
       sel.dispatchEvent(new Event('change', {bubbles: true}));
       return true;
     });
-    await new Promise(r => setTimeout(r, 600));
-    const text = await dbg.evaluate(() => document.getElementById('lbList').innerText.length);
+    const t1 = Date.now();
+    let text = 0;
+    for(;;){
+      text = await dbg.evaluate(() => document.getElementById('lbList').innerText.length);
+      if(text > 0 || Date.now() - t1 > 8000) break;
+      await new Promise(r => setTimeout(r, 400));
+    }
     assert.ok(text > 0);
     assert.deepEqual(await errCheck(), []);
   });

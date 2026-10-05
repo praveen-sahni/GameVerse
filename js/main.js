@@ -7,6 +7,7 @@ import {initTheme} from './theme.js';
 import {apiAuth, apiHeartbeat, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, fetchDailyLB, apiDailyScore, shopBuy, getUserId} from './api.js';
 import {games, thumbSVG} from './data.js';
 import {initQuests, dayKey, getItems, setItems, getDailyRun, clearDailyRun, dailySeedFor} from './quests.js';
+import {initPushUI, refreshPushBtn} from './push.js';
 import {makeRng} from './utils.js';
 import {mountBreakout} from './games/breakout.js';
 import {mountMerge} from './games/merge.js';
@@ -94,9 +95,12 @@ function lbRow(rank, av, name, sub, score, scoreSuffix){
   row.querySelector('.lb-xp span').textContent = scoreSuffix;
   return row;
 }
+function lbSkeleton(){
+  return Array(3).fill('<div class="lb-row lb-skeleton"><div class="sk sk-av"></div><div class="sk sk-line"></div></div>').join('');
+}
 async function renderLB(){
   const c = document.getElementById('lbList');
-  c.innerHTML = '';
+  c.innerHTML = lbSkeleton();
   if(lbGame === 'rivals'){
     // rivals board: followed names + you, ranked by XP (all data local-filtered)
     const names = getRivals();
@@ -114,11 +118,13 @@ async function renderLB(){
     }
     list.sort((a, b) => b.xp - a.xp);
     if(!names.length && !profile){
-      c.innerHTML = '<div class="act"><span>No rivals yet — accept a challenge or tap ＋ Rival! 👥</span></div>';
+      c.innerHTML = '<div class="act"><span>No rivals yet — accept a challenge or tap ＋ Rival! 👥</span><button class="btn-mini" id="lbAddRival">＋ Add Rival</button></div>';
+      document.getElementById('lbAddRival')?.addEventListener('click', () => document.getElementById('addRivalBtn')?.click());
       return;
     }
     if(!list.length){
-      c.innerHTML = '<div class="act"><span>None of your rivals have played yet. Share a challenge link! 🔗</span></div>';
+      c.innerHTML = '<div class="act"><span>None of your rivals have played yet. Share a challenge link! 🔗</span><button class="btn-mini" id="lbPlayCta">▶ Play a Game</button></div>';
+      document.getElementById('lbPlayCta')?.addEventListener('click', () => document.getElementById('games')?.scrollIntoView({behavior:'smooth'}));
       return;
     }
     list.slice(0, 10).forEach((u, i) => {
@@ -143,7 +149,8 @@ async function renderLB(){
       rows.push({username:profile.name, avatar:profile.avatar, score:stats.best[lbGame]});
     rows.sort((a, b) => b.score - a.score);
     if(!rows.length){
-      c.innerHTML = '<div class="act"><span>No scores yet — be the first! 🎮</span></div>';
+      c.innerHTML = `<div class="act"><span>No scores yet — be the first! 🎮</span><button class="btn-mini" id="lbPlayGame">▶ Play now</button></div>`;
+      document.getElementById('lbPlayGame')?.addEventListener('click', () => openGame(lbGame));
       return;
     }
     rows.slice(0, 5).forEach((u, i) => {
@@ -165,7 +172,8 @@ async function renderLB(){
   }
   list.sort((a, b) => b.xp - a.xp);
   if(!list.length){
-    c.innerHTML = '<div class="act"><span>No players yet — create a profile and play! 🎮</span></div>';
+    c.innerHTML = '<div class="act"><span>No players yet — create a profile and play! 🎮</span><button class="btn-mini" id="lbCreate">Create Profile</button></div>';
+    document.getElementById('lbCreate')?.addEventListener('click', () => openProfile());
     return;
   }
   list.slice(0, 5).forEach((u, i) => {
@@ -204,13 +212,23 @@ function renderGames(filter = 'all', search = ''){
   const list = games.filter(g => (filter === 'all' || g.cat === filter) && (!search || g.title.toLowerCase().includes(search.toLowerCase())));
   document.getElementById('showingCount').textContent = list.length;
   const {stats} = loadProfile();
-  list.forEach(g => {
+  list.forEach((g, i) => {
     const best = stats.best[g.id] || 0;
     const card = document.createElement('div');
     card.className = 'game-card';
     card.innerHTML = `<div class="card-media thumb-${g.id}" style="background:${g.color}"><div class="thumb-art">${thumbSVG(g.id)}</div><div class="thumb-glow" style="--glow:${g.glow}"></div><span class="thumb-emoji" aria-hidden="true">${g.icon}</span><span class="card-badge">● ${g.tag.toUpperCase()}</span>${best ? `<span class="card-best">BEST ${best}</span>` : ''}<span class="thumb-play">▶</span></div><div class="card-body"><div class="card-title">${g.title} <span style="margin-left:auto;font-size:0.68rem;background:rgba(255,255,255,0.08);padding:4px 8px;border-radius:999px">+${g.xp} XP</span></div><div class="card-desc">${g.desc}</div><div class="card-meta"><span>⭐ ${g.rating}</span><span>🏆 ${best || '—'}</span></div><div class="card-actions"><button class="btn-play" data-play="${g.id}">▶ Play Now</button><button class="btn-icon" data-info="${g.id}" aria-label="About ${g.title}">♡</button></div></div>`;
+    card.style.animationDelay = Math.min(i * 60, 420) + 'ms';
     grid.appendChild(card);
   });
+  if(!list.length){
+    grid.innerHTML = '<div class="act" style="grid-column:1/-1;text-align:center">No games match that search. <button class="btn-mini" id="clearSearch">Clear search</button></div>';
+    document.getElementById('clearSearch')?.addEventListener('click', () => {
+      document.getElementById('searchInput').value = '';
+      document.querySelectorAll('.filter').forEach(x => x.classList.remove('active'));
+      document.querySelector('.filter[data-filter="all"]')?.classList.add('active');
+      renderGames();
+    });
+  }
   grid.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => openGame(b.dataset.play)));
   grid.querySelectorAll('[data-info]').forEach(b => b.addEventListener('click', () => {
     const g = games.find(x => x.id === b.dataset.info);
@@ -412,8 +430,16 @@ function closeGame(){
 }
 
 function setScore(s){
+  const up = s > currentScore;
   currentScore = s;
   gameScoreEl.textContent = s;
+  const now = Date.now();
+  if(up && now - (setScore._t || 0) > 350){
+    setScore._t = now;
+    gameScoreEl.classList.remove('score-bump');
+    void gameScoreEl.offsetWidth;
+    gameScoreEl.classList.add('score-bump');
+  }
   const {stats} = loadProfile();
   const best = stats.best[currentGame.id] || 0;
   if(s > best){ stats.best[currentGame.id] = s; saveStats(stats); gameBestEl.textContent = s; }
@@ -443,6 +469,14 @@ function awardXp(base){
       document.getElementById('challengeBanner')?.remove();
     }
   }catch{}
+  // Guest upsell: first XP ever earned without a profile → invite once per session
+  if(!loadProfile().profile && !sess.get('gv_upsell')){
+    sess.set('gv_upsell', '1');
+    setTimeout(() => {
+      toast(`💾 Save your ${stats.xp} XP on all devices — create your free profile!`);
+      openProfile();
+    }, 1600);
+  }
   apiSyncStats({action:`Scored ${currentScore} in ${currentGame.title}`, score:currentScore, xp_earned:xp}, currentGame.id);
   // daily-challenge runs also post to today's board (best per day wins)
   if(getDailyRun() === currentGame.id && currentScore > 0) apiDailyScore(currentGame.id, currentScore);
@@ -544,6 +578,7 @@ function closeShop(){ document.getElementById('shopModal').classList.add('hidden
 
 // ---------- boot ----------
 initTheme();
+initPushUI();
 updateSoundBtn();
 document.getElementById('soundToggle')?.addEventListener('click', () => {
   setSound(!soundOn);
@@ -566,7 +601,7 @@ document.getElementById('saveProfile').addEventListener('click', async () => {
   if(dbUser){
     store.set('gv_coins', dbUser.coins || 0);
     setItems(dbUser.items || {});
-    setCoinsPill();
+    setCoinsPill(); refreshPushBtn();
   }
   toast(`Welcome, ${name}! ⚡`);
   closeProfile(); apiHeartbeat(); refreshCounts();
@@ -623,13 +658,13 @@ document.getElementById('resetProgress').addEventListener('click', () => {
 
 questsApi = initQuests({renderProfile, apiSyncStats, openGame, openProfile, games});
 questsApi.checkIncomingChallenge();
-// First-run welcome: no profile and never visited → invite to create one
+// First-run welcome: guest mode — play instantly, no gates.
+// The profile upsell happens at the first XP award (see awardXp).
 const isFirstRun = !store.get('gv_lastDay') && !store.get('gv_welcomed') && !loadProfile().profile;
 if(isFirstRun){
   store.set('gv_welcomed', '1');
   setTimeout(() => {
-    toast('👋 Welcome to GameVerse! Create your profile to save progress.');
-    openProfile();
+    toast('👋 Welcome to GameVerse! You are playing as Guest — hit Play on any game.');
   }, 1400);
 }
 document.getElementById('coinsPill')?.addEventListener('click', openShop);
@@ -640,13 +675,13 @@ if('serviceWorker' in navigator){
 }
 renderAvatarGrid(); renderGenre();
 document.getElementById('heroTotalGames').textContent = games.length;
-renderProfile(); renderLB(); renderActivity(); renderGames(); refreshWallet();
+renderProfile(); renderLB(); renderActivity(); renderGames(); refreshWallet(); refreshPushBtn();
 setTimeout(() => questsApi.updateStreak(), 600);
 setInterval(apiHeartbeat, 30000);
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') apiHeartbeat(); });
 setTimeout(apiHeartbeat, 2000);
 window.__gvBooted = true; // boot watchdog in index.html watches this flag
-const APP_SW_VERSION = 'gv-v3'; // must match const V in sw.js (tests enforce this)
+const APP_SW_VERSION = 'gv-v4'; // must match const V in sw.js (tests enforce this)
 function checkAppVersion(){
   // If the server has a newer service worker than this running bundle,
   // invite (don't force) a refresh so new games/updates actually appear.
@@ -656,13 +691,7 @@ function checkAppVersion(){
   }).then(t => {
     const m = t.match(/const V = '([^']+)'/);
     if(!m || m[1] === APP_SW_VERSION) return;
-    const box = document.getElementById('toast');
-    if(!box) return;
-    box.textContent = '↻ New version available — tap here to update';
-    box.classList.remove('hidden');
-    box.onclick = () => location.reload();
-    clearTimeout(checkAppVersion._t);
-    checkAppVersion._t = setTimeout(() => { box.classList.add('hidden'); box.onclick = null; }, 9000);
+    toast('↻ New version available — tap here to update', {ms: 9000, onClick: () => location.reload()});
   }).catch(() => {});
 }
 setTimeout(checkAppVersion, 4000);

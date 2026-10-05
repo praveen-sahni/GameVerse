@@ -112,6 +112,46 @@ describe('update delivery', () => {
   });
 });
 
+describe('engagement + safety', () => {
+  it('profile card offers push opt-in wired to push.js', () => {
+    assert.ok(read('index.html').includes('id="pushBtn"'));
+    const push = read('js/push.js');
+    assert.ok(push.includes('togglePush') && push.includes('/api/push/subscribe'));
+    assert.ok(read('js/main.js').includes('initPushUI'));
+  });
+  it('SW handles push notifications', () => {
+    const sw = read('sw.js');
+    assert.ok(sw.includes("addEventListener('push'") && sw.includes('showNotification'));
+    assert.ok(sw.includes('notificationclick'));
+  });
+  it('moderation list exists and register enforces it', () => {
+    const words = JSON.parse(read('data/badwords.json'));
+    assert.ok(words.length >= 50);
+    assert.ok(read('server.js').includes('isNameBlocked'));
+  });
+  it('reminder cron + timer ship with docs', () => {
+    assert.ok(fs.existsSync(path.join(root, 'scripts/send-reminders.mjs')));
+    assert.ok(fs.existsSync(path.join(root, 'deploy/gameverse-reminders.timer')));
+  });
+});
+
+describe('ui/ux polish', () => {
+  it('skip link, live toast region, and focus styles exist', () => {
+    const html = read('index.html');
+    assert.ok(html.includes('class="skip-link"'));
+    assert.ok(html.includes('role="status"'));
+    assert.ok(read('style.css').includes(':focus-visible'));
+    assert.ok(read('style.css').includes('.skip-link'));
+  });
+  it('loading skeletons, card stagger, and score bump exist', () => {
+    const css = read('style.css');
+    assert.ok(css.includes('.lb-skeleton') && css.includes('shimmer'));
+    assert.ok(css.includes('cardIn') && css.includes('scoreBump'));
+    assert.ok(read('js/main.js').includes('lbSkeleton'));
+    assert.ok(read('js/main.js').includes('score-bump'));
+  });
+});
+
 describe('backend hygiene', () => {
   it('server no longer read/writes database.json per request', () => {
     const src = read('server.js');
