@@ -1,7 +1,7 @@
 {
   "name": "GameVerse — Play. Level Up. Repeat.",
   "short_name": "GameVerse",
-  "description": "One profile, six addictive browser games.",
+  "description": "One profile, eight addictive browser games.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -9,6 +9,8 @@
   "background_color": "#070A14",
   "theme_color": "#070A14",
   "icons": [
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any"},
     {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
   ]
 }

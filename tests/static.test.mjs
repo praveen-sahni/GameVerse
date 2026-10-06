@@ -152,6 +152,23 @@ describe('ui/ux polish', () => {
   });
 });
 
+describe('share + brand assets', () => {
+  it('meta copy says eight games and social cards exist', () => {
+    const html = read('index.html');
+    assert.ok(!html.includes('six addictive browser games'));
+    assert.ok(html.includes('eight addictive browser games'));
+    for(const tag of ['og:title', 'og:description', 'og:type', 'og:url', 'og:image', 'twitter:card', 'twitter:image'])
+      assert.ok(html.includes(tag), tag);
+  });
+  it('real icon files exist and manifest lists PNGs', () => {
+    for(const f of ['icon-512.png', 'apple-touch-icon.png', 'og-image.png'])
+      assert.ok(fs.existsSync(path.join(root, f)), f);
+    const mf = JSON.parse(read('manifest.json'));
+    assert.ok(mf.icons.some(i => i.sizes === '512x512' && i.type === 'image/png'));
+    assert.ok(mf.description.includes('eight'));
+  });
+});
+
 describe('backend hygiene', () => {
   it('server no longer read/writes database.json per request', () => {
     const src = read('server.js');
