@@ -88,11 +88,13 @@ export function initQuests(deps){
     return out.join('');
   }
 
+  const NEWGAMES_QUEST = {id:'q-newgames', game:null, label:'🆕 Try Breakout & 2048', xp:30, check:s => (s.best.breakout || 0) > 0 && (s.best.merge || 0) > 0};
   function onboardingChips(){
     const {profile, stats} = loadProfile();
     const chips = [];
     if(!profile) chips.push(`<button class="daily-chip active" data-onboard="profile" style="cursor:pointer">① Create your profile →</button>`);
     else if((stats.played || 0) < 1) chips.push(`<button class="daily-chip active" data-onboard="play" style="cursor:pointer">② Play your first game →</button>`);
+    else if(!NEWGAMES_QUEST.check(stats)) chips.push(`<button class="daily-chip active" data-onboard="newgames" style="cursor:pointer">③ Try the 🆕 games →</button>`);
     else if(!store.get('gv_onboard_done')){
       store.set('gv_onboard_done', '1');
       stats.xp += 50; saveStats(stats);
@@ -108,7 +110,7 @@ export function initQuests(deps){
     const {stats} = loadProfile();
     const dk = dayKey(), wk = weekKey();
     const daily = pickDaily(dk);
-    const all = [...daily.map(q => ({...q, key:'d:' + dk + ':' + q.id})), {...WEEKLY_QUEST, key:'w:' + wk + ':' + WEEKLY_QUEST.id}];
+    const all = [...daily.map(q => ({...q, key:'d:' + dk + ':' + q.id})), {...WEEKLY_QUEST, key:'w:' + wk + ':' + WEEKLY_QUEST.id}, {...NEWGAMES_QUEST, key:'once:q-newgames'}];
     let newlyDone = 0;
     all.forEach(q => {
       const done = q.check(stats);
@@ -139,6 +141,7 @@ export function initQuests(deps){
     `;
     strip.querySelector('[data-onboard="profile"]')?.addEventListener('click', () => openProfile());
     strip.querySelector('[data-onboard="play"]')?.addEventListener('click', () => document.getElementById('games')?.scrollIntoView({behavior:'smooth'}));
+    strip.querySelector('[data-onboard="newgames"]')?.addEventListener('click', () => openGame('breakout'));
     strip.querySelectorAll('[data-daily]').forEach(b => b.addEventListener('click', () => {
       setDailyRun(b.dataset.daily);
       openGame(b.dataset.daily);

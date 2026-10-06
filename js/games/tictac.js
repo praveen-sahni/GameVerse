@@ -85,7 +85,7 @@ export function mountTicTac(env){
       env.beep(140, 0.35, 'sawtooth', 0.13); env.awardXp(10); env.toast('AI won');
     } else {
       scoreW.d++; env.setScore(50);
-      env.beep(500, 0.18, 'square', 0.1); env.awardXp(20); env.toast('Draw');
+      env.beep(500, 0.18, 'square', 0.1); env.awardXp(20, {draw:true}); env.toast('Draw');
     }
     document.getElementById('ttScore').textContent = `W${scoreW.w} D${scoreW.d} L${scoreW.l}`;
     draw();

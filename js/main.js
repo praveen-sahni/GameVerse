@@ -210,13 +210,17 @@ function renderGames(filter = 'all', search = ''){
   const grid = document.getElementById('gamesGrid');
   grid.innerHTML = '';
   const list = games.filter(g => (filter === 'all' || g.cat === filter) && (!search || g.title.toLowerCase().includes(search.toLowerCase())));
+  // feature new releases at the top until the cutoff (then they sort normally)
+  const NEW_UNTIL = '2026-10-26';
+  if(filter === 'all' && !search && new Date().toISOString().slice(0, 10) <= NEW_UNTIL)
+    list.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
   document.getElementById('showingCount').textContent = list.length;
   const {stats} = loadProfile();
   list.forEach((g, i) => {
     const best = stats.best[g.id] || 0;
     const card = document.createElement('div');
     card.className = 'game-card';
-    card.innerHTML = `<div class="card-media thumb-${g.id}" style="background:${g.color}"><div class="thumb-art">${thumbSVG(g.id)}</div><div class="thumb-glow" style="--glow:${g.glow}"></div><span class="thumb-emoji" aria-hidden="true">${g.icon}</span><span class="card-badge">● ${g.tag.toUpperCase()}</span>${best ? `<span class="card-best">BEST ${best}</span>` : ''}<span class="thumb-play">▶</span></div><div class="card-body"><div class="card-title">${g.title} <span style="margin-left:auto;font-size:0.68rem;background:rgba(255,255,255,0.08);padding:4px 8px;border-radius:999px">+${g.xp} XP</span></div><div class="card-desc">${g.desc}</div><div class="card-meta"><span>⭐ ${g.rating}</span><span>🏆 ${best || '—'}</span></div><div class="card-actions"><button class="btn-play" data-play="${g.id}">▶ Play Now</button><button class="btn-icon" data-info="${g.id}" aria-label="About ${g.title}">♡</button></div></div>`;
+    card.innerHTML = `<div class="card-media thumb-${g.id}" style="background:${g.color}"><div class="thumb-art">${thumbSVG(g.id)}</div><div class="thumb-glow" style="--glow:${g.glow}"></div><span class="thumb-emoji" aria-hidden="true">${g.icon}</span><span class="card-badge">● ${g.tag.toUpperCase()}</span>${g.isNew ? `<span class="card-new">🆕 NEW</span>` : ''}${best ? `<span class="card-best">BEST ${best}</span>` : ''}<span class="thumb-play">▶</span></div><div class="card-body"><div class="card-title">${g.title} <span style="margin-left:auto;font-size:0.68rem;background:rgba(255,255,255,0.08);padding:4px 8px;border-radius:999px">+${g.xp} XP</span></div><div class="card-desc">${g.desc}</div><div class="card-meta"><span>⭐ ${g.rating}</span><span>🏆 ${best || '—'}</span></div><div class="card-actions"><button class="btn-play" data-play="${g.id}">▶ Play Now</button><button class="btn-icon" data-info="${g.id}" aria-label="About ${g.title}">♡</button></div></div>`;
     card.style.animationDelay = Math.min(i * 60, 420) + 'ms';
     grid.appendChild(card);
   });
@@ -445,7 +449,7 @@ function setScore(s){
   if(s > best){ stats.best[currentGame.id] = s; saveStats(stats); gameBestEl.textContent = s; }
 }
 
-function awardXp(base){
+function awardXp(base, opts = {}){
   const {stats} = loadProfile();
   const streak = Number(store.get('gv_streak') || 1);
   const mult = 1 + Math.min(0.5, (streak - 1) * 0.08);
@@ -477,7 +481,7 @@ function awardXp(base){
       openProfile();
     }, 1600);
   }
-  apiSyncStats({action:`Scored ${currentScore} in ${currentGame.title}`, score:currentScore, xp_earned:xp}, currentGame.id);
+  apiSyncStats({action:`Scored ${currentScore} in ${currentGame.title}`, score:currentScore, xp_earned:xp, draw:opts.draw === true || undefined}, currentGame.id);
   // daily-challenge runs also post to today's board (best per day wins)
   if(getDailyRun() === currentGame.id && currentScore > 0) apiDailyScore(currentGame.id, currentScore);
   if(questsApi) setTimeout(() => questsApi.renderDaily(Number(store.get('gv_streak') || 1)), 400);
@@ -681,7 +685,7 @@ setInterval(apiHeartbeat, 30000);
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') apiHeartbeat(); });
 setTimeout(apiHeartbeat, 2000);
 window.__gvBooted = true; // boot watchdog in index.html watches this flag
-const APP_SW_VERSION = 'gv-v4'; // must match const V in sw.js (tests enforce this)
+const APP_SW_VERSION = 'gv-v5'; // must match const V in sw.js (tests enforce this)
 function checkAppVersion(){
   // If the server has a newer service worker than this running bundle,
   // invite (don't force) a refresh so new games/updates actually appear.

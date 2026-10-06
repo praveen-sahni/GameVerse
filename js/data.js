@@ -6,8 +6,8 @@ export const games = [
   {id:'blaster', title:'Aim Blaster+', desc:'Gold, freeze & bomb targets. Combo + levels.', icon:'🎯', tag:'Action', color:'linear-gradient(135deg,#2A0B1E 0%,#FF3B6E 130%)', glow:'#FF3B6E', cat:'action', xp:70, rating:'4.9'},
   {id:'runner', title:'Runner Rush 2', desc:'Coins, birds, double-jump, parallax city.', icon:'🏃', tag:'Action', color:'linear-gradient(135deg,#0B2420 0%,#10B981 130%)', glow:'#10B981', cat:'action', xp:90, rating:'4.8'},
   {id:'simon', title:'Simon Nova+', desc:'Strict mode, speed ramp, dots + keys 1-4.', icon:'✨', tag:'Puzzle', color:'linear-gradient(135deg,#2A1A08 0%,#EAB308 130%)', glow:'#EAB308', cat:'puzzle', xp:75, rating:'4.7'},
-  {id:'breakout', title:'Neon Breakout', desc:'Smash bricks, catch gold, 3 lives, paddle power.', icon:'🧱', tag:'Arcade', color:'linear-gradient(135deg,#1A0B2E 0%,#7C3AED 130%)', glow:'#7C3AED', cat:'arcade', xp:85, rating:'5.0'},
-  {id:'merge', title:'2048 Merge', desc:'Slide and merge to 2048. Undo power included.', icon:'🔢', tag:'Puzzle', color:'linear-gradient(135deg,#241505 0%,#FF8A00 130%)', glow:'#FF8A00', cat:'puzzle', xp:65, rating:'4.8'},
+  {id:'breakout', title:'Neon Breakout', desc:'Smash bricks, catch gold, 3 lives, paddle power.', icon:'🧱', tag:'Arcade', color:'linear-gradient(135deg,#1A0B2E 0%,#7C3AED 130%)', glow:'#7C3AED', cat:'arcade', xp:85, rating:'5.0', isNew:true},
+  {id:'merge', title:'2048 Merge', desc:'Slide and merge to 2048. Undo power included.', icon:'🔢', tag:'Puzzle', color:'linear-gradient(135deg,#241505 0%,#FF8A00 130%)', glow:'#FF8A00', cat:'puzzle', xp:65, rating:'4.8', isNew:true},
 ];
 
 export function thumbSVG(id){

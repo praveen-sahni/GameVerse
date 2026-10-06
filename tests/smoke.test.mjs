@@ -245,6 +245,25 @@ describe('HTTP API', () => {
     b = await (await buy('crown')).json().catch(() => ({}));
     assert.ok(b.error || b.coins !== undefined);
   });
+  it('caps draw XP at 3 per day (draw-farming guard)', async () => {
+    const users = await (await fetch(BASE + '/api/users')).json();
+    const me = users.find(u => u.username === 'SmokeUser');
+    let xp = me.xp;
+    const draw = (add) => fetch(BASE + '/api/stats', {method:'POST',
+      headers:{'Content-Type':'application/json', 'x-gv-token': token},
+      body: JSON.stringify({userId: uid, xp: xp + add, played: me.played + 1, best:{}, action:'x', score:50, xp_earned:add, gameId:'tictac', draw:true})});
+    for(let i = 0; i < 3; i++){
+      const j = await (await draw(25)).json();
+      assert.equal(j.clamped, false);
+      xp += 25;
+    }
+    const capped = await (await draw(25)).json();
+    assert.equal(capped.clamped, true);
+    const after = (await (await fetch(BASE + '/api/users')).json()).find(u => u.username === 'SmokeUser');
+    assert.equal(after.xp, xp); // 4th draw granted nothing
+    const acts = await (await fetch(BASE + '/api/activity')).json();
+    assert.ok(acts.some(a => a.username === 'SmokeUser' && a.action === 'TicTacToe draw' && a.xp_earned === 0));
+  });
   it('rejects honeypot registrations', async () => {
     const r = await fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({username:'BotUser', pin:'1234', website:'http://spam.example'})});

@@ -36,7 +36,7 @@ export async function apiSyncStats(extra, gameId){
     await fetch(apiUrl('/api/stats'), {method:'POST', headers:{'Content-Type':'application/json', 'x-gv-token': getToken()},
       body: JSON.stringify({userId: Number(id), xp: stats.xp, played: stats.played, wins: stats.wins,
         best: stats.best, action: extra?.action, score: extra?.score, xp_earned: extra?.xp_earned,
-        gameId: extra?.gameId || gameId || undefined})});
+        gameId: extra?.gameId || gameId || undefined, draw: extra?.draw === true || undefined})});
   }catch{}
 }
 

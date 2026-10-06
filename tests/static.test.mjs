@@ -169,6 +169,28 @@ describe('share + brand assets', () => {
   });
 });
 
+describe('discovery + seo', () => {
+  it('new games are flagged, badged, and featured', () => {
+    const data = read('js/data.js');
+    assert.ok(data.includes("id:'breakout'") && data.includes('isNew:true'));
+    assert.ok(data.includes("id:'merge'") && data.includes('isNew:true'));
+    const main = read('js/main.js');
+    assert.ok(main.includes('NEW_UNTIL') && main.includes('card-new'));
+    assert.ok(read('style.css').includes('.card-new'));
+    assert.ok(read('js/quests.js').includes('q-newgames'));
+  });
+  it('seo files exist with correct content', () => {
+    assert.ok(fs.existsSync(path.join(root, 'sitemap.xml')));
+    assert.ok(fs.existsSync(path.join(root, 'robots.txt')));
+    assert.ok(fs.existsSync(path.join(root, '404.html')));
+    const sm = read('sitemap.xml');
+    assert.ok(sm.includes('GameVerse/') && sm.includes('privacy.html'));
+    const rb = read('robots.txt');
+    assert.ok(rb.includes('Disallow: /admin.html') && rb.includes('Sitemap:'));
+    assert.ok(read('404.html').includes('Back to GameVerse'));
+  });
+});
+
 describe('backend hygiene', () => {
   it('server no longer read/writes database.json per request', () => {
     const src = read('server.js');

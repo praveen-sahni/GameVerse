@@ -357,7 +357,20 @@ app.post('/api/stats', (req, res) => {
   if(!u) return res.status(404).json({error:'User not found'});
   if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
   const current = {xp: u.xp, played: u.played, wins: u.wins, best: u.best, coins: u.coins};
-  const {patch, activity, clamped} = applyStatsUpdate(current, req.body);
+  const {patch, activity, clamped: clamped0} = applyStatsUpdate(current, req.body);
+  let clamped = clamped0;
+  // Draw farming guard: TicTacToe draws pay XP only 3x/day — further draws
+  // are still recorded (score counts) but grant no XP.
+  if(req.body?.draw === true && activity){
+    activity.action = 'TicTacToe draw';
+    const draws = db.prepare(`SELECT COUNT(*) AS c FROM activity
+      WHERE user_id = ? AND action = 'TicTacToe draw' AND created_at > datetime('now', '-24 hours')`).get(u.id).c;
+    if(draws >= 3){
+      if(patch.xp !== undefined) patch.xp = u.xp; // strip this event's XP
+      activity.xp_earned = 0;
+      clamped = true;
+    }
+  }
   if(patch.xp !== undefined) db.prepare('UPDATE users SET xp = ? WHERE id = ?').run(patch.xp, u.id);
   if(patch.played !== undefined) db.prepare('UPDATE users SET played = ? WHERE id = ?').run(patch.played, u.id);
   if(patch.wins !== undefined) db.prepare('UPDATE users SET wins = ? WHERE id = ?').run(patch.wins, u.id);

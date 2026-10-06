@@ -1,7 +1,7 @@
 // GameVerse service worker — cache-first for same-origin GETs (app shell + game modules),
 // except the game catalogue (js/data.js) which is network-first so new games always appear.
 // Bump V on every release so returning visitors fetch fresh files.
-const V = 'gv-v4';
+const V = 'gv-v5';
 const CORE = [
   './', './index.html', './style.css', './manifest.json',
   './js/main.js', './js/utils.js', './js/profile.js', './js/theme.js',
