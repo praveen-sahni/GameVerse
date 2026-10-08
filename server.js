@@ -30,9 +30,21 @@ app.use((req, res, next) => {
   if(process.env.TLS_CERT || req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
-app.use(cors());
+const FRONTEND_URL = process.env.FRONTEND_URL || '';
+app.use(cors({
+  origin: FRONTEND_URL ? FRONTEND_URL.split(',').map(s => s.trim()).filter(Boolean) : true,
+  methods: ['GET', 'POST', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'x-gv-token', 'x-admin-key'],
+}));
 app.use(express.json({limit:'100kb'}));
-app.use(express.static(__dirname));
+// Block sensitive files before static serving: DB, backups, logs, repo internals.
+// Only public game assets should ever be reachable over HTTP.
+const BLOCKED_STATIC = [/\.db($|-|\.|\/)/, /database\.json/, /\.migrated-bak$/, /server\.log$/, /^\/backups\//, /^\/node_modules\//, /^\/\.git\//, /^\/deploy\//, /^\/scripts\//, /^\/tests\//, /badwords\.json$/];
+app.use((req, res, next) => {
+  if(req.method === 'GET' && BLOCKED_STATIC.some(re => re.test(req.path))) return res.status(404).end();
+  next();
+});
+app.use(express.static(__dirname, {dotfiles:'deny'}));
 
 // ---------- SQLite setup ----------
 let db;
@@ -100,8 +112,6 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   created_at TEXT NOT NULL,
   UNIQUE(user_id, endpoint)
 );
-CREATE INDEX IF NOT EXISTS idx_users_xp ON users(xp DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_created ON activity(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_daily_game_day ON daily_scores(game, day, score DESC);
 `);
 
@@ -148,6 +158,7 @@ export function verifyPin(pin, stored){
   }catch{ return false; }
 }
 function makeToken(){ return crypto.randomBytes(32).toString('hex'); }
+function badToken(u, token){ return !u.token || !token || token !== u.token; }
 
 // ---------- Name moderation ----------
 // Token-exact matching avoids Scunthorpe false positives ("classic" is fine;
@@ -189,11 +200,20 @@ function rateLimit(req, res, next){
   const arr = (rateMap.get(ip)||[]).filter(t => now - t < 60000);
   arr.push(now);
   rateMap.set(ip, arr);
+  if(rateMap.size > 2000){
+    for(const k of rateMap.keys()){ rateMap.delete(k); if(rateMap.size < 1500) break; }
+  }
   if(arr.length > 20) return res.status(429).json({error:'Too many requests — wait a moment'});
   next();
 }
 function needAdmin(req, res){
-  if(!ADMIN_KEY) return false;
+  if(!ADMIN_KEY){
+    if(process.env.NODE_ENV === 'production'){
+      res.status(401).json({error:'Admin key required'});
+      return true;
+    }
+    return false;
+  }
   if(req.headers['x-admin-key'] !== ADMIN_KEY){
     res.status(401).json({error:'Admin key required'});
     return true;
@@ -333,7 +353,7 @@ app.post('/api/heartbeat', (req, res) => {
   if(!userId) return res.status(400).json({error:'userId required'});
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
   if(!u) return res.status(404).json({error:'User not found'});
-  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  if(badToken(u, token)) return res.status(403).json({error:'Invalid token'});
   db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(nowISO(), u.id);
   res.json({ok:true});
 });
@@ -348,14 +368,20 @@ app.post('/api/stats', (req, res) => {
   const key = 's' + userId;
   const arr = (statsRate.get(key) || []).filter(t => now - t < 60000);
   arr.push(now); statsRate.set(key, arr);
+  if(statsRate.size > 2000){
+    for(const k of statsRate.keys()){ statsRate.delete(k); if(statsRate.size < 1500) break; }
+  }
   if(arr.length > 30) return res.status(429).json({error:'Too many score updates'});
   // per-IP backstop so scripts can't rotate userIds to evade the per-user cap
   const iparr = (statsIpRate.get(req.ip) || []).filter(t => now - t < 60000);
   iparr.push(now); statsIpRate.set(req.ip, iparr);
+  if(statsIpRate.size > 2000){
+    for(const k of statsIpRate.keys()){ statsIpRate.delete(k); if(statsIpRate.size < 1500) break; }
+  }
   if(iparr.length > 120) return res.status(429).json({error:'Too many score updates'});
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
   if(!u) return res.status(404).json({error:'User not found'});
-  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  if(badToken(u, token)) return res.status(403).json({error:'Invalid token'});
   const current = {xp: u.xp, played: u.played, wins: u.wins, best: u.best, coins: u.coins};
   const {patch, activity, clamped: clamped0} = applyStatsUpdate(current, req.body);
   let clamped = clamped0;
@@ -392,7 +418,7 @@ app.get('/api/users', (req, res) => {
 app.get('/api/leaderboard/:game', (req, res) => {
   const game = String(req.params.game || '');
   if(!MAX_SCORE[game]) return res.status(400).json({error:'Unknown game'});
-  const rows = db.prepare('SELECT username,avatar,best FROM users').all();
+  const rows = db.prepare('SELECT username,avatar,best FROM users LIMIT 500').all();
   const list = [];
   for(const r of rows){
     const b = parseBest(r.best);
@@ -404,14 +430,14 @@ app.get('/api/leaderboard/:game', (req, res) => {
 });
 // Daily challenge scores — best score per user per game per day (UTC)
 function todayDay(){ return new Date().toISOString().slice(0, 10); }
-app.post('/api/daily/score', (req, res) => {
+app.post('/api/daily/score', rateLimit, (req, res) => {
   const {userId, game, score} = req.body;
   const token = req.headers['x-gv-token'];
   if(!userId || !game) return res.status(400).json({error:'userId + game required'});
   if(!MAX_SCORE[game]) return res.status(400).json({error:'Unknown game'});
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
   if(!u) return res.status(404).json({error:'User not found'});
-  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  if(badToken(u, token)) return res.status(403).json({error:'Invalid token'});
   let s = Math.floor(Number(score) || 0);
   if(s < 0) s = 0;
   if(s > MAX_SCORE[game]) s = MAX_SCORE[game]; // same caps as anti-cheat
@@ -437,13 +463,13 @@ export const SHOP = {
   crown:   {cost: 200, label: '👑 Crown avatar'},
   diamond: {cost: 300, label: '💎 Diamond avatar'},
 };
-app.post('/api/shop/buy', (req, res) => {
+app.post('/api/shop/buy', rateLimit, (req, res) => {
   const {userId, item} = req.body;
   const token = req.headers['x-gv-token'];
   if(!userId || !SHOP[item]) return res.status(400).json({error:'Unknown item'});
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
   if(!u) return res.status(404).json({error:'User not found'});
-  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  if(badToken(u, token)) return res.status(403).json({error:'Invalid token'});
   const items = parseItems(u.items);
   if(item === 'freeze'){
     if((u.coins || 0) < SHOP.freeze.cost) return res.status(400).json({error:'Not enough coins'});
@@ -490,7 +516,7 @@ app.get('/api/push/public-key', (req, res) => {
   if(!process.env.VAPID_PUBLIC) return res.status(404).json({error:'Push not configured'});
   res.json({key: process.env.VAPID_PUBLIC});
 });
-app.post('/api/push/subscribe', (req, res) => {
+app.post('/api/push/subscribe', rateLimit, (req, res) => {
   const {userId, subscription} = req.body;
   const token = req.headers['x-gv-token'];
   if(!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth)
@@ -498,7 +524,7 @@ app.post('/api/push/subscribe', (req, res) => {
   if(String(subscription.endpoint).length > 2000) return res.status(400).json({error:'Bad endpoint'});
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
   if(!u) return res.status(404).json({error:'User not found'});
-  if(u.token && token && token !== u.token) return res.status(403).json({error:'Invalid token'});
+  if(badToken(u, token)) return res.status(403).json({error:'Invalid token'});
   db.prepare(`INSERT INTO subscriptions (user_id,endpoint,p256dh,auth,created_at) VALUES (?,?,?,?,?)
     ON CONFLICT(user_id,endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth, created_at=excluded.created_at`)
     .run(u.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, nowISO());

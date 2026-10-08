@@ -144,7 +144,7 @@ async function render(){
     const rows=await fetchJSON('/api/sessions');
     const filtered=rows.filter(r=>!q||r.username.toLowerCase().includes(q));
     panel.innerHTML=`<table><thead><tr><th>Login</th><th>User</th><th>IP</th><th>Agent</th><th>Logout</th></tr></thead><tbody>
-      ${filtered.map(r=>`<tr><td><small>${new Date(r.login_at).toLocaleString()}</small></td><td><span class="avatar">${r.avatar}</span> ${r.username}</td><td><small>${r.ip||'—'}</small></td><td><small style="max-width:260px;display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.user_agent||'—'}</small></td><td><small>${r.logout_at?new Date(r.logout_at).toLocaleString():'— active —'}</small></td></tr>`).join('')}
+      ${filtered.map(r=>`<tr><td><small>${esc(new Date(r.login_at).toLocaleString())}</small></td><td><span class="avatar">${esc(r.avatar)}</span> ${esc(r.username)}</td><td><small>${esc(r.ip||'—')}</small></td><td><small style="max-width:260px;display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.user_agent||'—')}</small></td><td><small>${esc(r.logout_at?new Date(r.logout_at).toLocaleString():'— active —')}</small></td></tr>`).join('')}
     </tbody></table>`;
   } else {
     const rows=await fetchJSON('/api/activity');

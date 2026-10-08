@@ -589,6 +589,7 @@ document.getElementById('soundToggle')?.addEventListener('click', () => {
   toast(soundOn ? 'Sound ON' : 'Sound OFF');
 });
 document.getElementById('createProfileBtn').addEventListener('click', openProfile);
+document.getElementById('playNowBtn')?.addEventListener('click', () => document.getElementById('games')?.scrollIntoView({behavior:'smooth'}));
 document.getElementById('heroProfileBtn').addEventListener('click', openProfile);
 document.getElementById('editProfileBtn2').addEventListener('click', openProfile);
 document.getElementById('nav-profile-btn').addEventListener('click', (e) => { e.preventDefault(); openProfile(); });

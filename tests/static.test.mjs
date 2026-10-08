@@ -184,7 +184,8 @@ describe('discovery + seo', () => {
     assert.ok(fs.existsSync(path.join(root, 'robots.txt')));
     assert.ok(fs.existsSync(path.join(root, '404.html')));
     const sm = read('sitemap.xml');
-    assert.ok(sm.includes('GameVerse/') && sm.includes('privacy.html'));
+    assert.ok(sm.includes('privacy.html'));
+    assert.ok(sm.includes('gameverse-production-e0d6.up.railway.app') || sm.includes('GameVerse/'));
     const rb = read('robots.txt');
     assert.ok(rb.includes('Disallow: /admin.html') && rb.includes('Sitemap:'));
     assert.ok(read('404.html').includes('Back to GameVerse'));

@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin.html
 
-Sitemap: https://praveen-sahni.github.io/GameVerse/sitemap.xml
+Sitemap: https://gameverse-production-e0d6.up.railway.app/sitemap.xml

@@ -14,14 +14,15 @@
 <meta property="og:title" content="GameVerse — Play. Level Up. Repeat.">
 <meta property="og:description" content="One profile. Eight addictive games. Earn XP, unlock avatars, climb the leaderboard.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://praveen-sahni.github.io/GameVerse/">
-<meta property="og:image" content="https://praveen-sahni.github.io/GameVerse/og-image.png">
+<meta property="og:url" content="https://gameverse-production-e0d6.up.railway.app/">
+<meta property="og:image" content="https://gameverse-production-e0d6.up.railway.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<link rel="canonical" href="https://gameverse-production-e0d6.up.railway.app/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="GameVerse — Play. Level Up. Repeat.">
 <meta name="twitter:description" content="One profile. Eight addictive games. Earn XP, unlock avatars, climb the leaderboard.">
-<meta name="twitter:image" content="https://praveen-sahni.github.io/GameVerse/og-image.png">
+<meta name="twitter:image" content="https://gameverse-production-e0d6.up.railway.app/og-image.png">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
@@ -41,12 +42,11 @@
 <!-- NAV -->
 <nav class="nav" aria-label="Main navigation">
   <div class="nav-inner">
-    <div class="logo" aria-label="GameVerse home"><span class="logo-icon" aria-hidden="true">◆</span> GameVerse <span class="logo-accent">VERSE</span></div>
+    <div class="logo" aria-label="GameVerse home"><span class="logo-icon" aria-hidden="true">◆</span> Game<span class="logo-accent">Verse</span></div>
     <div class="nav-links" role="navigation">
       <a href="#games" class="nav-link active" aria-current="page">Games</a>
       <a href="#lb" class="nav-link">Leaderboard</a>
       <a href="#" id="nav-profile-btn" class="nav-link" aria-label="Open profile">Profile</a>
-      <a href="./admin.html" class="nav-link" target="_blank" aria-label="Open admin dashboard">Admin DB ↗</a>
     </div>
     <div class="nav-actions">
       <div class="search" role="search"><span aria-hidden="true">⌕</span><input id="searchInput" placeholder="Search games..." aria-label="Search games"></div>
@@ -75,11 +75,11 @@
     <h1>ENTER THE<br><span class="grad">GAME VERSE</span></h1>
     <p class="hero-sub">One profile. Eight addictive games. Earn XP, unlock avatars, climb the leaderboard. Built for players who never stop.</p>
     <div class="hero-cta">
-      <button class="btn-primary-lg" onclick="document.getElementById('games').scrollIntoView({behavior:'smooth'})">▶ PLAY NOW</button>
+      <button class="btn-primary-lg" id="playNowBtn">▶ PLAY NOW</button>
       <button class="btn-ghost" id="heroProfileBtn">Create Your Avatar →</button>
     </div>
     <div class="hero-stats">
-      <div><strong id="heroTotalGames">6</strong><span>Games</span></div>
+      <div><strong id="heroTotalGames">8</strong><span>Games</span></div>
       <div><strong id="heroOnline">—</strong><span>Online Now</span></div>
       <div><strong id="heroUsers">—</strong><span>Profiles</span></div>
     </div>
@@ -121,7 +121,7 @@
     <button class="filter" data-filter="puzzle">Puzzle</button>
     <button class="filter" data-filter="action">Action</button>
   </div>
-  <div class="filter-right">Showing <b id="showingCount">6</b> games • <span class="live">● Live</span> • <button class="btn-mini" id="howToBtn" style="padding:6px 10px">❓ How to Play</button></div>
+  <div class="filter-right">Showing <b id="showingCount">8</b> games • <span class="live">● Live</span> • <button class="btn-mini" id="howToBtn" style="padding:6px 10px">❓ How to Play</button></div>
 </div>
 
 <!-- GAMES GRID -->
@@ -162,7 +162,7 @@
 
 <footer class="footer">
   <div>© 2026 GameVerse — Crafted for players. One profile unlocks everything. <span class="muted">No download. Play instantly.</span></div>
-  <div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a></div>
+  <div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a><a href="./admin.html" aria-label="Admin dashboard">Admin</a></div>
 </footer>
 
 <!-- PROFILE MODAL -->
