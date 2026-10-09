@@ -8,10 +8,10 @@ export function getToken(){ return store.get('gv_token') || ''; }
 
 export async function apiAuth(profile){
   const pin = document.getElementById('pPin')?.value.trim() || '';
-  if(pin && !/^\d{4}$/.test(pin)){ toast('PIN must be 4 digits'); throw new Error('pin'); }
+  if(!/^\d{4}$/.test(pin)){ toast('Set a 4-digit PIN to protect your name'); throw new Error('pin'); }
   try{
     const r = await fetch(apiUrl('/api/auth'), {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({username: profile.name, avatar: profile.avatar, genre: profile.genre, pin: pin || '0000',
+      body: JSON.stringify({username: profile.name, avatar: profile.avatar, genre: profile.genre, pin,
         website: document.getElementById('pWebsite')?.value || ''})});
     if(!r.ok){ const err = await r.json().catch(() => ({error:'auth failed'})); toast(err.error || 'Auth failed'); throw new Error(err.error); }
     const data = await r.json();
@@ -27,6 +27,15 @@ export async function apiHeartbeat(){
     await fetch(apiUrl('/api/heartbeat'), {method:'POST', headers:{'Content-Type':'application/json', 'x-gv-token': getToken()},
       body: JSON.stringify({userId: Number(id)})});
   }catch{}
+}
+
+export async function apiLogout(){
+  const id = getUserId(); if(!id) return;
+  try{
+    await fetch(apiUrl('/api/logout'), {method:'POST', headers:{'Content-Type':'application/json', 'x-gv-token': getToken()},
+      body: JSON.stringify({userId: Number(id)})});
+  }catch{}
+  store.del('gv_userId'); store.del('gv_token');
 }
 
 export async function apiSyncStats(extra, gameId){

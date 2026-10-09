@@ -974,3 +974,9 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   #createProfileBtn{display:none}
   .simon-btn{min-height:104px}
 }
+/* PERF: mobile — kill heavy ambient layers, reduce blur cost */
+@media(max-width:640px){
+  .aurora,.bg-orb,#particles{display:none}
+  .nav,.glass,.game-frame,.toast,.search,.profile-pill,.game-card{backdrop-filter:none;-webkit-backdrop-filter:none}
+  .game-card::after{display:none}
+}

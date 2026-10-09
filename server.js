@@ -20,13 +20,26 @@ const ADMIN_KEY = process.env.ADMIN_KEY || '';
 // X-Forwarded-* — trust the local proxy so rate limits see real IPs
 // and req.secure reflects the public HTTPS scheme.
 if(process.env.BEHIND_PROXY) app.set('trust proxy', 1);
-// Minimal security headers (CSP omitted: page uses inline scripts/styles).
+// Minimal security headers + CSP (transitional: allows existing inline
+// styles/scripts used by the hub + admin; blocks frames/objects).
 // Registered BEFORE static serving so every response — pages, JS, API — carries them.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'microphone=(), camera=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "connect-src 'self' https://gameverse-production-e0d6.up.railway.app",
+    "worker-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'self'",
+  ].join('; '));
   if(process.env.TLS_CERT || req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
@@ -310,10 +323,10 @@ app.post('/api/auth', rateLimit, (req, res) => {
   const { username, avatar, genre, pin } = req.body;
   if(req.body.website) return res.status(400).json({error:'Registration unavailable'});
   if(!username || username.trim().length < 2) return res.status(400).json({error:'Username min 2 chars'});
-  if(pin && !/^\d{4}$/.test(String(pin))) return res.status(400).json({error:'PIN must be 4 digits'});
+  if(!pin || !/^\d{4}$/.test(String(pin))) return res.status(400).json({error:'PIN must be 4 digits'});
   const clean = username.trim().slice(0, 20);
   if(isNameBlocked(clean)) return res.status(400).json({error:'That name is not allowed — pick another'});
-  const pinStr = String(pin || '0000');
+  const pinStr = String(pin);
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
   const ua = req.headers['user-agent'] || '';
   let user = db.prepare('SELECT * FROM users WHERE username = ?').get(clean);
@@ -410,8 +423,21 @@ app.post('/api/stats', (req, res) => {
   res.json({ok:true, clamped});
 });
 
+// Paginated list helper: ?limit= (default 100, max 200) &offset=.
+// Returns arrays (backward compatible) + X-Total-Count header.
+function pageParams(req){
+  let limit = Math.floor(Number(req.query.limit) || 100);
+  if(limit < 1) limit = 1;
+  if(limit > 200) limit = 200;
+  let offset = Math.floor(Number(req.query.offset) || 0);
+  if(offset < 0) offset = 0;
+  return {limit, offset};
+}
 app.get('/api/users', (req, res) => {
-  const rows = db.prepare('SELECT id,username,avatar,genre,xp,played,wins,best,coins,items,created_at,last_seen FROM users ORDER BY xp DESC').all();
+  const {limit, offset} = pageParams(req);
+  const total = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+  const rows = db.prepare('SELECT id,username,avatar,genre,xp,played,wins,best,coins,items,created_at,last_seen FROM users ORDER BY xp DESC LIMIT ? OFFSET ?').all(limit, offset);
+  res.setHeader('X-Total-Count', String(total));
   res.json(rows.map(publicUser));
 });
 // Per-game leaderboard, ranked by best score (public, no secrets)
@@ -537,12 +563,18 @@ app.post('/api/push/unsubscribe', (req, res) => {
   res.json({ok:true});
 });
 app.get('/api/activity', (req, res) => {
-  const rows = db.prepare('SELECT id,user_id,username,avatar,action,score,xp_earned,created_at FROM activity ORDER BY id DESC LIMIT 100').all();
+  const {limit, offset} = pageParams(req);
+  const total = db.prepare('SELECT COUNT(*) AS c FROM activity').get().c;
+  const rows = db.prepare('SELECT id,user_id,username,avatar,action,score,xp_earned,created_at FROM activity ORDER BY id DESC LIMIT ? OFFSET ?').all(limit, offset);
+  res.setHeader('X-Total-Count', String(total));
   res.json(rows);
 });
 app.get('/api/sessions', (req, res) => {
   if(needAdmin(req, res)) return;
-  const rows = db.prepare('SELECT id,user_id,username,avatar,login_at,logout_at,ip,user_agent FROM sessions ORDER BY id DESC LIMIT 100').all();
+  const {limit, offset} = pageParams(req);
+  const total = db.prepare('SELECT COUNT(*) AS c FROM sessions').get().c;
+  const rows = db.prepare('SELECT id,user_id,username,avatar,login_at,logout_at,ip,user_agent FROM sessions ORDER BY id DESC LIMIT ? OFFSET ?').all(limit, offset);
+  res.setHeader('X-Total-Count', String(total));
   res.json(rows);
 });
 app.get('/api/stats/summary', (req, res) => {
@@ -554,7 +586,14 @@ app.get('/api/stats/summary', (req, res) => {
 });
 app.post('/api/logout', (req, res) => {
   const {userId} = req.body;
-  if(userId) db.prepare(`UPDATE sessions SET logout_at = ? WHERE user_id = ? AND logout_at IS NULL`).run(nowISO(), Number(userId));
+  const token = req.headers['x-gv-token'];
+  if(userId){
+    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(userId));
+    if(u && token && u.token && token === u.token){
+      db.prepare('UPDATE users SET token = NULL, last_seen = ? WHERE id = ?').run(nowISO(), u.id);
+    }
+    db.prepare(`UPDATE sessions SET logout_at = ? WHERE user_id = ? AND logout_at IS NULL`).run(nowISO(), Number(userId));
+  }
   res.json({ok:true});
 });
 // Admin: rename a user everywhere (users, sessions, activity, daily scores)

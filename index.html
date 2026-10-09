@@ -30,6 +30,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"GameVerse","url":"https://gameverse-production-e0d6.up.railway.app/","description":"One profile, eight addictive browser games. Earn XP, coins, and climb the leaderboard."}
+</script>
 </head>
 <body>
 <a class="skip-link" href="#games">Skip to games</a>
@@ -239,6 +242,20 @@
       <div><b>🧱 Breakout:</b> Mouse, touch or ← → to move. Edge hits angle the ball. Gold bricks +30, 3 lives.</div>
       <div><b>🔢 2048:</b> Arrows, WASD, swipe or buttons. Merge matching tiles to reach 2048. Undo available.</div>
       <div style="background:rgba(255,106,0,0.1);border:1px solid rgba(255,106,0,0.2);padding:10px 12px;border-radius:12px"><b>🔥 Pro:</b> Daily streak +20 XP, power-ups 1 per game, sound toggle top-right, theme dots, share score, per-game mini-leaderboard in modal.</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM / PROMPT MODAL (non-blocking rival + reset dialogs) -->
+<div class="modal hidden" id="confirmModal" role="dialog" aria-modal="true" aria-label="Confirm action">
+  <div class="modal-card glass" style="max-width:420px">
+    <button class="modal-close" id="confirmCancelX" aria-label="Cancel">×</button>
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p class="muted" id="confirmText" style="margin-top:8px"></p>
+    <input id="confirmInput" placeholder="Player name" maxlength="20" aria-label="Prompt input" style="display:none;margin-top:12px">
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-ghost full" id="confirmCancel">Cancel</button>
+      <button class="btn-primary-lg full" id="confirmOk" style="padding:12px 18px">Confirm</button>
     </div>
   </div>
 </div>

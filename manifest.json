@@ -12,5 +12,10 @@
     {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
     {"src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any"},
     {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ],
+  "categories": ["games", "entertainment"],
+  "screenshots": [
+    {"src": "og-image.png", "sizes": "1200x630", "type": "image/png", "form_factor": "wide"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "form_factor": "narrow"}
   ]
 }

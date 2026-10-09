@@ -4,7 +4,7 @@
 import {toast, confettiBurst, beep, triggerShake, updateSoundBtn, setSound, soundOn, store, sess} from './utils.js';
 import {avatars, loadProfile, saveProfile, saveStats, levelFromXp, defaultStats, getRivals, addRival, removeRival} from './profile.js';
 import {initTheme} from './theme.js';
-import {apiAuth, apiHeartbeat, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, fetchDailyLB, apiDailyScore, shopBuy, getUserId} from './api.js';
+import {apiAuth, apiHeartbeat, apiLogout, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, fetchDailyLB, apiDailyScore, shopBuy, getUserId} from './api.js';
 import {games, thumbSVG} from './data.js';
 import {initQuests, dayKey, getItems, setItems, getDailyRun, clearDailyRun, dailySeedFor} from './quests.js';
 import {initPushUI, refreshPushBtn} from './push.js';
@@ -311,6 +311,35 @@ function trapFocus(modal){
 }
 function releaseTrap(modal){
   if(modal._trapHandler) modal.removeEventListener('keydown', modal._trapHandler);
+}
+// Non-blocking confirm/prompt modal (replaces native prompt/confirm).
+function openConfirm({title = 'Are you sure?', text = '', input = false, inputPlaceholder = '', okLabel = 'Confirm'} = {}){
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmModal');
+    const okBtn = document.getElementById('confirmOk');
+    const cancelBtn = document.getElementById('confirmCancel');
+    const cancelX = document.getElementById('confirmCancelX');
+    const inputEl = document.getElementById('confirmInput');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmText').textContent = text;
+    okBtn.textContent = okLabel;
+    inputEl.style.display = input ? 'block' : 'none';
+    inputEl.value = '';
+    inputEl.placeholder = inputPlaceholder;
+    const done = (val) => {
+      modal.classList.add('hidden');
+      releaseTrap(modal);
+      okBtn.onclick = cancelBtn.onclick = cancelX.onclick = modal.onclick = null;
+      resolve(val);
+    };
+    okBtn.onclick = () => done(input ? inputEl.value : true);
+    cancelBtn.onclick = () => done(input ? '' : false);
+    cancelX.onclick = () => done(input ? '' : false);
+    modal.onclick = (e) => { if(e.target === modal) done(input ? '' : false); };
+    modal.classList.remove('hidden');
+    trapFocus(modal);
+    if(input) setTimeout(() => inputEl.focus(), 60);
+  });
 }
 openProfile = function(){ openProfileBase(); trapFocus(profileModal); };
 closeProfile = function(){ releaseTrap(profileModal); closeProfileBase(); document.getElementById('createProfileBtn')?.focus(); };
@@ -624,11 +653,15 @@ document.getElementById('lbGame')?.addEventListener('change', (e) => {
   lbGame = e.target.value;
   renderLB();
 });
-document.getElementById('addRivalBtn')?.addEventListener('click', () => {
-  const name = (prompt('Rival player name (exact):') || '').trim();
+document.getElementById('addRivalBtn')?.addEventListener('click', async () => {
+  const name = ((await openConfirm({
+    title: 'Follow a rival',
+    text: 'Enter the exact player name to follow their XP.',
+    input: true, inputPlaceholder: 'Rival player name', okLabel: 'Follow',
+  })) || '').trim();
   if(!name) return;
   if(addRival(name)){
-    toast(`👥 Following ${name}!`);
+    toast(`Following ${name}!`);
     lbGame = 'rivals';
     document.getElementById('lbGame').value = 'rivals';
     renderLB();
@@ -652,13 +685,18 @@ document.getElementById('howToBtn')?.addEventListener('click', () => document.ge
 document.getElementById('closeHowTo')?.addEventListener('click', () => document.getElementById('howToModal').classList.add('hidden'));
 document.getElementById('howToModal')?.addEventListener('click', (e) => { if(e.target === document.getElementById('howToModal')) e.currentTarget.classList.add('hidden'); });
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !gameModal.classList.contains('hidden')) closeGame(); });
-document.getElementById('resetProgress').addEventListener('click', () => {
-  if(confirm('Reset all XP and progress?')){
-    store.del('gv_stats'); store.del('gv_act');
-    store.set('gv_stats', JSON.stringify({...defaultStats, best:{}}));
-    renderProfile(); renderLB(); renderActivity(); renderGames();
-    toast('Progress reset');
-  }
+document.getElementById('resetProgress').addEventListener('click', async () => {
+  const ok = await openConfirm({
+    title: 'Reset progress?',
+    text: 'This clears local XP, coins and activity on this device, and logs you out everywhere. This cannot be undone.',
+    okLabel: 'Reset everything',
+  });
+  if(!ok) return;
+  await apiLogout();
+  store.del('gv_stats'); store.del('gv_act'); store.del('gv_coins');
+  store.set('gv_stats', JSON.stringify({...defaultStats, best:{}}));
+  renderProfile(); renderLB(); renderActivity(); renderGames();
+  toast('Progress reset');
 });
 
 questsApi = initQuests({renderProfile, apiSyncStats, openGame, openProfile, games});
