@@ -55,9 +55,17 @@ export async function fetchSummary(){
   return r.json();
 }
 
-export async function fetchUsers(){
-  const r = await fetch(apiUrl('/api/users'));
+export async function fetchUsers(limit){
+  const q = limit ? '?limit=' + encodeURIComponent(limit) : '';
+  const r = await fetch(apiUrl('/api/users' + q));
   if(!r.ok) throw new Error('users failed');
+  return r.json();
+}
+
+export async function fetchMe(){
+  const id = getUserId(); if(!id) return null;
+  const r = await fetch(apiUrl('/api/users/' + encodeURIComponent(id)));
+  if(!r.ok) throw new Error('me failed');
   return r.json();
 }
 

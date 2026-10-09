@@ -72,6 +72,38 @@ describe('launch readiness', () => {
   });
 });
 
+describe('mobile + auth ux', () => {
+  it('bottom tab bar replaces hidden nav links', () => {
+    const html = read('index.html');
+    assert.ok(html.includes('class="tabbar"'));
+    assert.ok(html.includes('data-tab="games"') && html.includes('data-tab="shop"'));
+    assert.ok(read('style.css').includes('.tabbar-btn'));
+    assert.ok(read('js/main.js').includes('.tabbar-btn'));
+  });
+  it('PIN field is masked with a toggle', () => {
+    const html = read('index.html');
+    assert.ok(html.includes('id="pPin" type="password"'));
+    assert.ok(html.includes('id="pinToggle"'));
+  });
+  it('rival + reset use the non-blocking modal', () => {
+    const html = read('index.html');
+    assert.ok(html.includes('id="confirmModal"'));
+    const main = read('js/main.js');
+    assert.ok(main.includes('openConfirm'));
+    assert.ok(!main.match(/prompt\(|confirm\(/));
+  });
+  it('API base defaults to same-origin with Pages fallback', () => {
+    assert.ok(read('index.html').includes('<meta name="gv-api-base" content="">'));
+    assert.ok(read('js/config.js').includes('github'));
+  });
+  it('manifest + SEO extras exist', () => {
+    const mf = JSON.parse(read('manifest.json'));
+    assert.ok(mf.categories?.includes('games'));
+    assert.ok(mf.screenshots?.length >= 1);
+    assert.ok(read('index.html').includes('application/ld+json'));
+  });
+});
+
 describe('split hosting', () => {
   it('all game API calls route through the configurable base', () => {
     const src = read('js/api.js');

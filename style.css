@@ -894,7 +894,7 @@ button{font-family:inherit}
   .hero{grid-template-columns:1fr; gap:26px}
   .games-grid{grid-template-columns:repeat(2,1fr)}
   .bottom-grid{grid-template-columns:1fr}
-  .nav-actions .search{display:none}
+  .nav-actions .search{min-width:160px;flex:1}
   .aurora{height:420px}
 }
 /* responsive — mobile: strict alignment, no horizontal scroll */
@@ -979,4 +979,21 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   .aurora,.bg-orb,#particles{display:none}
   .nav,.glass,.game-frame,.toast,.search,.profile-pill,.game-card{backdrop-filter:none;-webkit-backdrop-filter:none}
   .game-card::after{display:none}
+}
+/* MOBILE TAB BAR — replaces hidden nav-links + keeps Games/Board reachable */
+.tabbar{display:none}
+@media(max-width:640px){
+  body{padding-bottom:76px}
+  .tabbar{
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:rgba(10,11,26,0.92);border-top:1px solid rgba(255,255,255,0.08);
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  }
+  .tabbar-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    background:none;border:none;color:#C8CEE6;font-size:1.1rem;font-weight:800;
+    padding:8px 4px;min-height:52px;cursor:pointer;border-radius:12px;
+  }
+  .tabbar-btn span{font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase}
+  .tabbar-btn:active{background:rgba(255,255,255,0.08)}
 }

@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>GameVerse — Play. Level Up. Repeat.</title>
 <meta name="theme-color" content="#070A14">
-<meta name="gv-api-base" content="https://gameverse-production-e0d6.up.railway.app">
+<meta name="gv-api-base" content="">
 <meta name="description" content="GameVerse — one profile, eight addictive browser games. Earn XP, coins, and climb the leaderboard.">
 <meta property="og:title" content="GameVerse — Play. Level Up. Repeat.">
 <meta property="og:description" content="One profile. Eight addictive games. Earn XP, unlock avatars, climb the leaderboard.">
@@ -168,6 +168,14 @@
   <div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a><a href="./admin.html" aria-label="Admin dashboard">Admin</a></div>
 </footer>
 
+<!-- MOBILE TAB BAR (nav-links + search hide on small screens) -->
+<nav class="tabbar" aria-label="Mobile navigation">
+  <button data-tab="games" class="tabbar-btn" aria-label="Games">🎮<span>Games</span></button>
+  <button data-tab="lb" class="tabbar-btn" aria-label="Leaderboard">🏆<span>Board</span></button>
+  <button data-tab="shop" class="tabbar-btn" aria-label="Shop">🪙<span>Shop</span></button>
+  <button data-tab="profile" class="tabbar-btn" aria-label="Profile">👤<span>Profile</span></button>
+</nav>
+
 <!-- PROFILE MODAL -->
 <div class="modal hidden" id="profileModal" role="dialog" aria-modal="true" aria-label="Create profile">
   <div class="modal-card glass">
@@ -179,7 +187,10 @@
     <!-- honeypot: invisible to humans, bots fill it and get rejected -->
     <input id="pWebsite" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;opacity:0">
     <label>Security PIN (4 digits, protects your name)</label>
-    <input id="pPin" placeholder="1234" maxlength="4" inputmode="numeric" pattern="[0-9]*" aria-label="Security PIN">
+    <div style="display:flex;gap:8px">
+      <input id="pPin" type="password" placeholder="1234" maxlength="4" inputmode="numeric" pattern="[0-9]*" aria-label="Security PIN" autocomplete="new-password" style="flex:1">
+      <button class="btn-mini" id="pinToggle" aria-label="Show PIN" style="flex:none">👁</button>
+    </div>
     <label>Choose Avatar</label>
     <div class="avatar-grid" id="avatarGrid"></div>
     <label>Favorite Genre</label>

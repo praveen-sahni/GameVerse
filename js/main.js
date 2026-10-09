@@ -4,7 +4,7 @@
 import {toast, confettiBurst, beep, triggerShake, updateSoundBtn, setSound, soundOn, store, sess} from './utils.js';
 import {avatars, loadProfile, saveProfile, saveStats, levelFromXp, defaultStats, getRivals, addRival, removeRival} from './profile.js';
 import {initTheme} from './theme.js';
-import {apiAuth, apiHeartbeat, apiLogout, apiSyncStats, fetchUsers, fetchSummary, fetchGameLB, fetchDailyLB, apiDailyScore, shopBuy, getUserId} from './api.js';
+import {apiAuth, apiHeartbeat, apiLogout, apiSyncStats, fetchUsers, fetchMe, fetchSummary, fetchGameLB, fetchDailyLB, apiDailyScore, shopBuy, getUserId} from './api.js';
 import {games, thumbSVG} from './data.js';
 import {initQuests, dayKey, getItems, setItems, getDailyRun, clearDailyRun, dailySeedFor} from './quests.js';
 import {initPushUI, refreshPushBtn} from './push.js';
@@ -107,7 +107,7 @@ async function renderLB(){
     const {profile, stats} = loadProfile();
     let list = [];
     try{
-      const users = await fetchUsers();
+      const users = await fetchUsers(200);
       list = users
         .filter(u => names.some(n => n.toLowerCase() === u.username.toLowerCase()))
         .map(u => ({name:u.username, av:u.avatar, xp:u.xp}));
@@ -162,7 +162,7 @@ async function renderLB(){
   const {profile, stats} = loadProfile();
   let list = [];
   try{
-    const users = await fetchUsers();
+    const users = await fetchUsers(6);
     list = users.slice(0, 5).map(u => ({name:u.username, av:u.avatar, xp:u.xp}));
   }catch{}
   if(profile){
@@ -559,8 +559,7 @@ async function refreshWallet(){
   const id = getUserId();
   if(!id){ setCoinsPill(); return; }
   try{
-    const users = await fetchUsers();
-    const me = users.find(u => String(u.id) === String(id));
+    const me = await fetchMe();
     if(me){
       store.set('gv_coins', me.coins || 0);
       setItems(me.items || {});
@@ -682,6 +681,20 @@ document.getElementById('gameShare')?.addEventListener('click', () => {
 gameModal.addEventListener('click', (e) => { if(e.target === gameModal) closeGame(); });
 document.getElementById('gameRestart').addEventListener('click', () => { if(currentGame) mountGame(currentGame.id); });
 document.getElementById('howToBtn')?.addEventListener('click', () => document.getElementById('howToModal').classList.remove('hidden'));
+document.getElementById('pinToggle')?.addEventListener('click', () => {
+  const pin = document.getElementById('pPin');
+  const show = pin.type === 'password';
+  pin.type = show ? 'text' : 'password';
+  document.getElementById('pinToggle').textContent = show ? '🙈' : '👁';
+  document.getElementById('pinToggle').setAttribute('aria-label', show ? 'Hide PIN' : 'Show PIN');
+});
+document.querySelectorAll('.tabbar-btn').forEach(b => b.addEventListener('click', () => {
+  const tab = b.dataset.tab;
+  if(tab === 'games') document.getElementById('games')?.scrollIntoView({behavior:'smooth'});
+  else if(tab === 'lb') document.getElementById('lb')?.scrollIntoView({behavior:'smooth'});
+  else if(tab === 'shop') document.getElementById('coinsPill')?.click();
+  else if(tab === 'profile') openProfile();
+}));
 document.getElementById('closeHowTo')?.addEventListener('click', () => document.getElementById('howToModal').classList.add('hidden'));
 document.getElementById('howToModal')?.addEventListener('click', (e) => { if(e.target === document.getElementById('howToModal')) e.currentTarget.classList.add('hidden'); });
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !gameModal.classList.contains('hidden')) closeGame(); });

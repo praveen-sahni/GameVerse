@@ -269,6 +269,28 @@ describe('HTTP API', () => {
       body: JSON.stringify({username:'BotUser', pin:'1234', website:'http://spam.example'})});
     assert.equal(r.status, 400);
   });
+  it('requires a 4-digit PIN at registration', async () => {
+    const noPin = await fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:'PinlessUser'})});
+    assert.equal(noPin.status, 400);
+  });
+  it('invalidates tokens on logout', async () => {
+    // re-login (no reg-quota consumed) then logout; old token must die
+    const reg = await (await fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:'SmokeUser', pin:'1234'})})).json();
+    const id = reg.user.id, tk = reg.token;
+    token = tk; // keep later tests on the fresh token
+    assert.equal((await fetch(BASE + '/api/logout', {method:'POST',
+      headers:{'Content-Type':'application/json', 'x-gv-token': tk},
+      body: JSON.stringify({userId: id})})).status, 200);
+    assert.equal((await fetch(BASE + '/api/heartbeat', {method:'POST',
+      headers:{'Content-Type':'application/json', 'x-gv-token': tk},
+      body: JSON.stringify({userId: id})})).status, 403);
+    // restore a working session for the remaining tests
+    const back = await (await fetch(BASE + '/api/auth', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:'SmokeUser', pin:'1234'})})).json();
+    token = back.token;
+  });
   it('throttles mass account creation per IP', async () => {
     // order-independent: other tests also register from this IP, so keep
     // creating until the 5-per-hour cap trips (must happen quickly).
@@ -288,5 +310,27 @@ describe('HTTP API', () => {
     assert.ok(Array.isArray(rows));
     assert.ok(rows.some(r => r.username === 'SmokeUser' && r.score > 0));
     assert.ok(!('pin_hash' in rows[0] || 'token' in rows[0]));
+  });
+  it('paginates lists with caps + totals', async () => {
+    const one = await fetch(BASE + '/api/users?limit=1&offset=0');
+    assert.equal(one.headers.get('x-total-count') !== null, true);
+    assert.ok((await one.json()).length <= 1);
+    const capped = await (await fetch(BASE + '/api/users?limit=999')).json();
+    assert.ok(capped.length <= 200);
+    const act = await fetch(BASE + '/api/activity?limit=2');
+    assert.ok((await act.json()).length <= 2);
+  });
+  it('serves a single profile without the full table', async () => {
+    const me = await (await fetch(BASE + `/api/users/${uid}`)).json();
+    assert.equal(me.id, uid);
+    assert.equal(me.username, 'SmokeUser');
+    assert.equal(me.pin_hash, undefined);
+    assert.equal((await fetch(BASE + '/api/users/999999')).status, 404);
+  });
+  it('sends a Content-Security-Policy header', async () => {
+    const r = await fetch(BASE + '/');
+    const csp = r.headers.get('content-security-policy') || '';
+    assert.ok(csp.includes("default-src 'self'"));
+    assert.ok(csp.includes('object-src'));
   });
 });

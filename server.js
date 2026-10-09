@@ -206,19 +206,26 @@ export function isNameBlocked(name){
 }
 
 // ---------- Rate limits ----------
-const rateMap = new Map();
-function rateLimit(req, res, next){
-  const ip = req.ip;
-  const now = Date.now();
-  const arr = (rateMap.get(ip)||[]).filter(t => now - t < 60000);
-  arr.push(now);
-  rateMap.set(ip, arr);
-  if(rateMap.size > 2000){
-    for(const k of rateMap.keys()){ rateMap.delete(k); if(rateMap.size < 1500) break; }
-  }
-  if(arr.length > 20) return res.status(429).json({error:'Too many requests — wait a moment'});
-  next();
+// Separate buckets per route group so game actions (shop/push/daily)
+// can't starve auth and vice versa. Auth stays strict (20/min/IP);
+// gameplay endpoints get a looser budget (120/min/IP).
+function makeRateLimiter(max, windowMs = 60000){
+  const map = new Map();
+  return function rateLimit(req, res, next){
+    const ip = req.ip;
+    const now = Date.now();
+    const arr = (map.get(ip)||[]).filter(t => now - t < windowMs);
+    arr.push(now);
+    map.set(ip, arr);
+    if(map.size > 2000){
+      for(const k of map.keys()){ map.delete(k); if(map.size < 1500) break; }
+    }
+    if(arr.length > max) return res.status(429).json({error:'Too many requests — wait a moment'});
+    next();
+  };
 }
+const rateLimit = makeRateLimiter(20);
+const looseRateLimit = makeRateLimiter(120);
 function needAdmin(req, res){
   if(!ADMIN_KEY){
     if(process.env.NODE_ENV === 'production'){
@@ -440,6 +447,14 @@ app.get('/api/users', (req, res) => {
   res.setHeader('X-Total-Count', String(total));
   res.json(rows.map(publicUser));
 });
+// Single profile (powers wallet/avatars without downloading the whole table)
+app.get('/api/users/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if(!Number.isFinite(id)) return res.status(400).json({error:'Bad id'});
+  const u = db.prepare('SELECT id,username,avatar,genre,xp,played,wins,best,coins,items,created_at,last_seen FROM users WHERE id = ?').get(id);
+  if(!u) return res.status(404).json({error:'User not found'});
+  res.json(publicUser(u));
+});
 // Per-game leaderboard, ranked by best score (public, no secrets)
 app.get('/api/leaderboard/:game', (req, res) => {
   const game = String(req.params.game || '');
@@ -456,7 +471,7 @@ app.get('/api/leaderboard/:game', (req, res) => {
 });
 // Daily challenge scores — best score per user per game per day (UTC)
 function todayDay(){ return new Date().toISOString().slice(0, 10); }
-app.post('/api/daily/score', rateLimit, (req, res) => {
+app.post('/api/daily/score', looseRateLimit, (req, res) => {
   const {userId, game, score} = req.body;
   const token = req.headers['x-gv-token'];
   if(!userId || !game) return res.status(400).json({error:'userId + game required'});
@@ -489,7 +504,7 @@ export const SHOP = {
   crown:   {cost: 200, label: '👑 Crown avatar'},
   diamond: {cost: 300, label: '💎 Diamond avatar'},
 };
-app.post('/api/shop/buy', rateLimit, (req, res) => {
+app.post('/api/shop/buy', looseRateLimit, (req, res) => {
   const {userId, item} = req.body;
   const token = req.headers['x-gv-token'];
   if(!userId || !SHOP[item]) return res.status(400).json({error:'Unknown item'});
@@ -542,7 +557,7 @@ app.get('/api/push/public-key', (req, res) => {
   if(!process.env.VAPID_PUBLIC) return res.status(404).json({error:'Push not configured'});
   res.json({key: process.env.VAPID_PUBLIC});
 });
-app.post('/api/push/subscribe', rateLimit, (req, res) => {
+app.post('/api/push/subscribe', looseRateLimit, (req, res) => {
   const {userId, subscription} = req.body;
   const token = req.headers['x-gv-token'];
   if(!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth)
@@ -693,6 +708,11 @@ migrateFromJson();
 console.log('DB:', DB_PATH);
 if(ADMIN_KEY) console.log('Admin key auth: enabled');
 else console.log('Admin key auth: disabled (set ADMIN_KEY env to protect sessions + backups)');
+if(process.env.NODE_ENV === 'production'){
+  if(!ADMIN_KEY){ console.error('FATAL: ADMIN_KEY is required in production — refusing to boot with open admin.'); process.exit(1); }
+  if(!FRONTEND_URL) console.warn('WARNING: FRONTEND_URL not set — CORS allows any origin. Set it to your frontend origin in production.');
+  if(!process.env.BEHIND_PROXY) console.warn('WARNING: BEHIND_PROXY not set — rate limits see proxy IPs. Set BEHIND_PROXY=1 behind Railway/nginx.');
+}
 // Nightly backup (also runs once at boot if no backup exists today)
 if(!process.env.GAMEVERSE_NO_BACKUP){
   const today = new Date().toISOString().slice(0, 10);

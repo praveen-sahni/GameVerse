@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GameVerse Admin — Database</title>
-<meta name="gv-api-base" content="https://gameverse-production-e0d6.up.railway.app">
+<meta name="gv-api-base" content="">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@600&family=Orbitron:wght@700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -32,6 +32,12 @@ td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.
 .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .controls input{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.06);color:white;min-width:240px}
 .btn{background:linear-gradient(135deg,#7C3AED,#FF2E93);color:white;border:none;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer}
+.btn.secondary{background:rgba(255,255,255,0.07);border:1px solid var(--border)}
+.modal{position:fixed;inset:0;background:rgba(4,6,18,0.7);display:grid;place-items:center;z-index:50;padding:20px}
+.modal.hidden{display:none}
+.modal-card{width:min(420px,94vw);background:#15173A;border:1px solid var(--border);border-radius:16px;padding:20px}
+.modal-card input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.06);color:white;margin-top:10px}
+.modal-row{display:flex;gap:8px;margin-top:14px}
 @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -45,7 +51,7 @@ td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.
 </div>
 <div class="wrap">
   <h2 style="font-family:Orbitron,sans-serif;margin-top:6px">Database Dashboard</h2>
-  <p style="color:#9AA0B5;margin-top:4px">Live SQLite database — see every profile, login, and active player. Auto-refresh every 5s.</p>
+  <p style="color:#9AA0B5;margin-top:4px">Live SQLite database — see every profile, login, and active player.</p>
 
   <div class="kpis" id="kpis"></div>
 
@@ -61,9 +67,21 @@ td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.
     <button class="tab active" data-tab="users">👥 Users & Logins</button>
     <button class="tab" data-tab="sessions">🟢 Sessions</button>
     <button class="tab" data-tab="activity">⚡ Activity Feed</button>
+    <button class="tab" data-tab="backups">💾 Backups</button>
   </div>
 
   <div class="panel" id="panel"></div>
+</div>
+<div class="modal hidden" id="adminModal" role="dialog" aria-modal="true" aria-label="Admin confirm">
+  <div class="modal-card">
+    <h3 id="adminModalTitle" style="font-family:Orbitron,sans-serif">Confirm</h3>
+    <p id="adminModalText" style="color:#9AA0B5;margin-top:6px;font-size:0.88rem"></p>
+    <input id="adminModalInput" maxlength="20" style="display:none" aria-label="Admin input">
+    <div class="modal-row">
+      <button class="btn secondary" id="adminModalCancel" style="flex:1">Cancel</button>
+      <button class="btn" id="adminModalOk" style="flex:1">Confirm</button>
+    </div>
+  </div>
 </div>
 <script>
 let tab='users';
@@ -121,24 +139,25 @@ async function render(){
       `).join('')}
     </tbody></table>`;
     panel.querySelectorAll('[data-rename]').forEach(b => b.addEventListener('click', async () => {
-      const name = (prompt(`Rename ${b.dataset.name} to:`, b.dataset.name) || '').trim();
+      const name = await adminPrompt(`Rename ${b.dataset.name} to:`, b.dataset.name);
       if(!name || name === b.dataset.name) return;
       try{
         const r = await fetch(apiBase() + '/api/admin/users/' + b.dataset.rename + '/rename', {method:'POST',
           headers:{...adminHeaders(), 'Content-Type':'application/json'}, body: JSON.stringify({username: name})});
         const j = await r.json().catch(() => ({}));
         if(!r.ok) throw new Error(j.error || 'Rename failed');
-        render();
-      }catch(e){ alert(e.message); }
+        renderTables();
+      }catch(e){ note(e.message); }
     }));
     panel.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
-      if(!confirm(`Permanently delete ${b.dataset.name} and ALL their rows?`)) return;
+      const ok = await adminConfirm(`Permanently delete ${b.dataset.name} and ALL their rows?`);
+      if(!ok) return;
       try{
         const r = await fetch(apiBase() + '/api/admin/users/' + b.dataset.del, {method:'DELETE', headers:adminHeaders()});
         const j = await r.json().catch(() => ({}));
         if(!r.ok) throw new Error(j.error || 'Delete failed');
-        render();
-      }catch(e){ alert(e.message); }
+        renderTables();
+      }catch(e){ note(e.message); }
     }));
   } else if(tab==='sessions'){
     const rows=await fetchJSON('/api/sessions');
@@ -146,18 +165,75 @@ async function render(){
     panel.innerHTML=`<table><thead><tr><th>Login</th><th>User</th><th>IP</th><th>Agent</th><th>Logout</th></tr></thead><tbody>
       ${filtered.map(r=>`<tr><td><small>${esc(new Date(r.login_at).toLocaleString())}</small></td><td><span class="avatar">${esc(r.avatar)}</span> ${esc(r.username)}</td><td><small>${esc(r.ip||'—')}</small></td><td><small style="max-width:260px;display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.user_agent||'—')}</small></td><td><small>${esc(r.logout_at?new Date(r.logout_at).toLocaleString():'— active —')}</small></td></tr>`).join('')}
     </tbody></table>`;
-  } else {
+  } else if(tab==='activity'){
     const rows=await fetchJSON('/api/activity');
     const filtered=rows.filter(r=>!q||r.username.toLowerCase().includes(q)||r.action.toLowerCase().includes(q));
     panel.innerHTML=`<table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Score</th><th>XP</th></tr></thead><tbody>
       ${filtered.map(r=>`<tr><td><small>${esc(new Date(r.created_at).toLocaleString())}</small></td><td><span class="avatar">${esc(r.avatar||'⚡')}</span> ${esc(r.username)}</td><td>${esc(r.action)}</td><td>${r.score||0}</td><td>${r.xp_earned||0}</td></tr>`).join('')}
     </tbody></table>`;
+  } else if(tab==='backups'){
+    let files = [];
+    try{ files = await fetchJSON('/api/backups'); }
+    catch(e){ panel.innerHTML=`<p style="color:#FF7A9B">${esc(e.message)}</p>`; return; }
+    if(!files.length){ panel.innerHTML = '<p style="color:#9AA0B5">No backups yet — hit 💾 Backup DB.</p>'; return; }
+    panel.innerHTML=`<table><thead><tr><th>Snapshot</th><th>Size</th><th></th></tr></thead><tbody>
+      ${files.map(f=>`<tr><td><small style="font-family:JetBrains Mono">${esc(f.file)}</small></td><td><small>${(f.bytes/1024).toFixed(1)} KB</small></td>
+      <td style="white-space:nowrap"><button class="btn" data-dl="${esc(f.file)}" style="padding:6px 10px">⬇</button> <button class="btn" data-rs="${esc(f.file)}" title="Restore ${esc(f.file)}" style="padding:6px 10px">♻ Restore</button></td></tr>`).join('')}
+    </tbody></table>`;
+    panel.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', () => {
+      fetch(apiBase() + '/api/backup/' + encodeURIComponent(b.dataset.dl), {headers: adminHeaders()}).then(async r => {
+        if(!r.ok) throw new Error('Download failed (' + r.status + ')');
+        const blob = await r.blob();
+        const u = URL.createObjectURL(blob);
+        const l = document.createElement('a'); l.href = u; l.download = b.dataset.dl; l.click();
+        setTimeout(() => URL.revokeObjectURL(u), 5000);
+      }).catch(e => note(e.message));
+    }));
+    panel.querySelectorAll('[data-rs]').forEach(b => b.addEventListener('click', async () => {
+      const ok = await adminConfirm(`Restore ${b.dataset.rs}? Current DB is kept as .pre-restore-bak.`);
+      if(!ok) return;
+      try{
+        const r = await fetch(apiBase() + '/api/restore', {method:'POST',
+          headers:{...adminHeaders(), 'Content-Type':'application/json'}, body: JSON.stringify({file: b.dataset.rs})});
+        const j = await r.json().catch(() => ({}));
+        if(!r.ok) throw new Error(j.error || 'Restore failed');
+        note('Restored ' + j.restored);
+        render();
+      }catch(e){ note(e.message); }
+    }));
+    return;
   }
   }catch(e){ panel.innerHTML=`<p style="color:#FF7A9B">${esc(e.message)}</p>`; }
 }
 
+function note(msg){ document.getElementById('adminNote').textContent = msg || ''; }
+function adminModal({title, text, input, okLabel}){
+  return new Promise((resolve) => {
+    const m = document.getElementById('adminModal');
+    document.getElementById('adminModalTitle').textContent = title || 'Confirm';
+    document.getElementById('adminModalText').textContent = text || '';
+    const inp = document.getElementById('adminModalInput');
+    inp.style.display = input ? 'block' : 'none';
+    inp.value = input || '';
+    document.getElementById('adminModalOk').textContent = okLabel || 'Confirm';
+    const done = (v) => { m.classList.add('hidden'); resolve(v); };
+    document.getElementById('adminModalOk').onclick = () => done(input !== undefined ? inp.value.trim() : true);
+    document.getElementById('adminModalCancel').onclick = () => done(input !== undefined ? '' : false);
+    m.onclick = (e) => { if(e.target === m) done(input !== undefined ? '' : false); };
+    m.classList.remove('hidden');
+    setTimeout(() => (input !== undefined ? inp : document.getElementById('adminModalOk')).focus(), 50);
+  });
+}
+function adminPrompt(text, initial){ return adminModal({title:'Rename user', text, input: initial || '', okLabel:'Rename'}); }
+function adminConfirm(text){ return adminModal({title:'Confirm', text, okLabel:'Confirm'}); }
+
+async function renderTables(){ await render(); }
+let searchTimer = null;
 document.querySelectorAll('.tab').forEach(b=> b.addEventListener('click',()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); tab=b.dataset.tab; render(); }));
-document.getElementById('search').addEventListener('input', render);
+document.getElementById('search').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, 300);
+});
 document.getElementById('refresh').addEventListener('click',(e)=>{e.preventDefault(); render();});
 document.getElementById('exportBtn').addEventListener('click',()=>{
   if(!usersData.length) return;
@@ -181,11 +257,12 @@ document.getElementById('backupBtn').addEventListener('click', async()=>{
     const r=await fetch(apiBase()+'/api/backup',{method:'POST',headers:adminHeaders()});
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Backup failed');
-    alert('Backup written: '+j.file);
-  }catch(e){ alert(e.message); }
+    note('Backup written: '+j.file);
+    if(tab === 'backups') render();
+  }catch(e){ note(e.message); }
 });
 render();
-setInterval(render, 5000);
+setInterval(loadKpis, 30000);
 </script>
 </body>
 </html>
